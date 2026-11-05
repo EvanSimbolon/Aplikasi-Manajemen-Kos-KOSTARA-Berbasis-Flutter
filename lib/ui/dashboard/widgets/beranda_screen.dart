@@ -1,0 +1,14 @@
+import 'package:flutter/material.dart';
+
+// ---------- BERANDA (kosong, hanya tulisan) ----------
+class BerandaScreen extends StatelessWidget {
+  const BerandaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text('Beranda',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+    );
+  }
+}
