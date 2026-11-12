@@ -32,62 +32,62 @@ class AppRouter {
   }
 
   static Map<String, WidgetBuilder> get routes => {
-        AppRoutes.landing: (context) => const LandingScreen(),
-        AppRoutes.login: (context) => const LoginScreen(),
+    AppRoutes.landing: (context) => const LandingScreen(),
+    AppRoutes.login: (context) => const LoginScreen(),
 
-        // ---------- Penghuni ----------
-        AppRoutes.dashboard: (context) => const DashboardPage(),
-        AppRoutes.kalender: (context) => const KalenderPage(),
-        AppRoutes.tenantKeluhan: (context) => _shell(
-              AjukanKeluhanScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-        AppRoutes.tenantRiwayat: (context) => _shell(
-              RiwayatPembayaranScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-        AppRoutes.tenantBuktiPembayaran: (context) => _shell(
-              BuktiPembayaranScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-        AppRoutes.tenantProfil: (context) => _shell(
-              ProfilScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-                onUbahProfil: () => Navigator.of(context).pushNamed(
-                  AppRoutes.tenantUbahProfil,
-                ),
-                onPengaturan: () => Navigator.of(context).pushNamed(
-                  AppRoutes.tenantPengaturan,
-                ),
-              ),
-            ),
-        AppRoutes.tenantUbahProfil: (context) => _shell(
-              UbahProfilScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-                onSaved: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-        AppRoutes.tenantPengaturan: (context) => _shell(
-              PengaturanScreen(
-                onBack: () => Navigator.of(context).maybePop(),
-              ),
-            ),
+    // ---------- Penghuni ----------
+    AppRoutes.dashboard: (context) => const DashboardPage(),
+    AppRoutes.kalender: (context) => const KalenderScreen(),
+    AppRoutes.tenantKeluhan: (context) => _shell(
+      AjukanKeluhanScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+      ),
+    ),
+    AppRoutes.tenantRiwayat: (context) => _shell(
+      RiwayatPembayaranScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+      ),
+    ),
+    AppRoutes.tenantBuktiPembayaran: (context) => _shell(
+      BuktiPembayaranScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+      ),
+    ),
+    AppRoutes.tenantProfil: (context) => _shell(
+      ProfilScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+        onUbahProfil: () => Navigator.of(context).pushNamed(
+          AppRoutes.tenantUbahProfil,
+        ),
+        onPengaturan: () => Navigator.of(context).pushNamed(
+          AppRoutes.tenantPengaturan,
+        ),
+      ),
+    ),
+    AppRoutes.tenantUbahProfil: (context) => _shell(
+      UbahProfilScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+        onSaved: () => Navigator.of(context).maybePop(),
+      ),
+    ),
+    AppRoutes.tenantPengaturan: (context) => _shell(
+      PengaturanScreen(
+        onBack: () => Navigator.of(context).maybePop(),
+      ),
+    ),
 
-        // ---------- Admin ----------
-        AppRoutes.adminDashboard: (context) => const DashboardAdminScreen(),
-        AppRoutes.dataKamar: (context) => const DataKamarPage(),
-        AppRoutes.dataPembayaran: (context) => const DataPembayaranPage(),
-        AppRoutes.dataPenghuni: (context) => const data_penghuni(),
-        AppRoutes.formPenghuni: (context) => const FormPenghuniScreen(),
-        AppRoutes.verifPembayaran: (context) => const verif_pembayaran(),
+    // ---------- Admin ----------
+    AppRoutes.adminDashboard: (context) => const DashboardAdminScreen(),
+    AppRoutes.dataKamar: (context) => const DataKamarPage(),
+    AppRoutes.dataPembayaran: (context) => const DataPembayaranPage(),
+    AppRoutes.dataPenghuni: (context) => const data_penghuni(),
+    AppRoutes.formPenghuni: (context) => const FormPenghuniScreen(),
+    AppRoutes.verifPembayaran: (context) => const verif_pembayaran(),
 
-        // ---------- Profil admin yang sudah ada ----------
-        AppRoutes.maintenance: (context) => const MaintenancePage(),
-        AppRoutes.profil: (context) => const ProfilPage(),
-        AppRoutes.ubahProfil: (context) => const UbahProfilPage(),
-        AppRoutes.pengaturan: (context) => const PengaturanPage(),
-      };
+    // ---------- Profil admin yang sudah ada ----------
+    AppRoutes.maintenance: (context) => const MaintenancePage(),
+    AppRoutes.profil: (context) => const ProfilPage(),
+    AppRoutes.ubahProfil: (context) => const UbahProfilPage(),
+    AppRoutes.pengaturan: (context) => const PengaturanPage(),
+  };
 }
