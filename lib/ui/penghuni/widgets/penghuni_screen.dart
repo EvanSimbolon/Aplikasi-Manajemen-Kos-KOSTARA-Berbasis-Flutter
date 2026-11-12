@@ -28,6 +28,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
   void initState() {
     super.initState();
     _viewModel.addListener(_onViewModelChanged);
+    _viewModel.muat();
   }
 
   void _onViewModelChanged() {
@@ -61,19 +62,28 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
           _buildFilterTabs(),
           const SizedBox(height: 16),
           Expanded(
-            child: filteredTenants.isEmpty
+            child: _viewModel.loading
+                ? const Center(child: CircularProgressIndicator())
+                : _viewModel.error != null
                 ? Center(
-              child: Text(
-                'Tidak ada data penghuni',
-                style: GoogleFonts.inter(color: Colors.black54),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Gagal memuat: ${_viewModel.error}',
+                    style: GoogleFonts.inter(fontSize: 11)),
               ),
             )
+                : filteredTenants.isEmpty
+                ? Center(
+              child: Text('Tidak ada data penghuni',
+                  style:
+                  GoogleFonts.inter(color: Colors.black54)),
+            )
                 : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 4),
               itemCount: filteredTenants.length,
-              itemBuilder: (context, index) {
-                return _buildTenantCard(filteredTenants[index]);
-              },
+              itemBuilder: (context, index) =>
+                  _buildTenantCard(filteredTenants[index]),
             ),
           ),
         ],
@@ -86,15 +96,14 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
 
     return Stack(
       children: [
-        // Background Header Gradien Cokelat Keemasan dengan Sudut Bawah Melengkung
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 16), // Ruang untuk pencarian melayang
+          margin: const EdgeInsets.only(bottom: 16),
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color(0xFFFFB22C), // Brownish Orange Top (Sesuai Desain Asli)
-                Color(0xFF854836), // Deeper Warm Brown Bottom
+                Color(0xFFFFB22C),
+                Color(0xFF854836),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -107,7 +116,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
             top: statusBarHeight + 10,
             left: 12,
             right: 16,
-            bottom: 86, // Jarak ekstra di bawah teks judul untuk search bar melayang
+            bottom: 86,
           ),
           child: Row(
             children: [
@@ -131,8 +140,6 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
             ],
           ),
         ),
-
-        // Search Bar Melayang Menumpuk di Bawah Header
         Positioned(
           left: 16,
           right: 16,
@@ -140,7 +147,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
           child: Container(
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7E6), // Warna krem sesuai gambar
+              color: const Color(0xFFFFF7E6),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: const Color(0xFFDEC9A4),
@@ -157,11 +164,14 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
             child: TextField(
               controller: _searchController,
               onChanged: _viewModel.cari,
-              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF222222)),
+              style: GoogleFonts.inter(
+                  fontSize: 14, color: const Color(0xFF222222)),
               decoration: InputDecoration(
                 hintText: 'Cari Nama / Nomor Kamar',
-                hintStyle: GoogleFonts.inter(color: const Color(0xFF9E8E78), fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: Colors.black87, size: 24),
+                hintStyle: GoogleFonts.inter(
+                    color: const Color(0xFF9E8E78), fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Colors.black87, size: 24),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -185,11 +195,15 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
             child: GestureDetector(
               onTap: () => _viewModel.setFilter(filterText),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF854836) : const Color(0xFFFFF0D4),
+                  color: isSelected
+                      ? const Color(0xFF854836)
+                      : const Color(0xFFFFF0D4),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF854836).withOpacity(0.5)),
+                  border: Border.all(
+                      color: const Color(0xFF854836).withOpacity(0.5)),
                 ),
                 child: Text(
                   filterText,
@@ -225,14 +239,14 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFFC07F00),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, color: Colors.white, size: 32),
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: const Color(0xFFC07F00),
+            backgroundImage:
+            tenant.fotoUrl != null ? NetworkImage(tenant.fotoUrl!) : null,
+            child: tenant.fotoUrl == null
+                ? const Icon(Icons.person, color: Colors.white, size: 32)
+                : null,
           ),
           const SizedBox(width: 14),
           Expanded(

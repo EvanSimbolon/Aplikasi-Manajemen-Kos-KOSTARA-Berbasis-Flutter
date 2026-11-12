@@ -17,12 +17,13 @@ class RiwayatPembayaranScreen extends StatefulWidget {
 class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   final RiwayatPembayaranViewModel _viewModel = RiwayatPembayaranViewModel();
 
-  final filters = const ['Semua', 'Menunggu', 'Berhasil'];
+  final filters = const ['Semua', 'Menunggu Verifikasi', 'Terverifikasi'];
 
   @override
   void initState() {
     super.initState();
     _viewModel.addListener(_onViewModelChanged);
+    _viewModel.muat();
   }
 
   void _onViewModelChanged() {
@@ -79,8 +80,9 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                 child: GestureDetector(
                   onTap: () => _viewModel.setFilter(f),
                   child: Container(
+                    height: 48, // cukup untuk 2 baris, sama untuk semua tombol
                     margin: EdgeInsets.only(right: f == filters.last ? 0 : 10),
-                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     decoration: BoxDecoration(
                       color: active ? profileBrown : fieldCream,
                       borderRadius: BorderRadius.circular(8),
@@ -89,6 +91,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
                     alignment: Alignment.center,
                     child: Text(
                       f,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -103,15 +106,26 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: data.isEmpty
+          child: _viewModel.loading
+              ? const Center(child: CircularProgressIndicator())
+              : _viewModel.error != null
+              ? Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Gagal memuat: ${_viewModel.error}',
+                  style: const TextStyle(fontSize: 11)),
+            ),
+          )
+              : data.isEmpty
               ? const Center(
-                  child: Text('Tidak ada data', style: TextStyle(fontSize: 12)))
+              child: Text('Tidak ada data',
+                  style: TextStyle(fontSize: 12)))
               : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: data.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => RiwayatCard(data[i]),
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: data.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) => RiwayatCard(data[i]),
+          ),
         ),
       ],
     );

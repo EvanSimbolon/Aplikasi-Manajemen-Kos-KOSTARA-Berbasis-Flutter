@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:belajar_dart/ui/core/ui/common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ---------- HALAMAN: BUKTI PEMBAYARAN ----------
 class BuktiPembayaranScreen extends StatefulWidget {
@@ -31,6 +32,55 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
     );
     if (date != null) {
       tanggalCtrl.text = DateFormat('dd/MM/yyyy').format(date);
+    }
+  }
+
+  bool loading = false;
+
+  static const String _bucket = 'bukti-pembayaran';
+// Sementara untuk testing: salin satu id dari tabel `pembayaran`
+  static const String _pembayaranId = 'PASTE-UUID-PEMBAYARAN';
+
+  Future<void> kirimBukti() async {
+    if (foto == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pilih foto bukti pembayaran dulu')),
+      );
+      return;
+    }
+
+    setState(() => loading = true);
+    try {
+      final client = Supabase.instance.client;
+
+      // 1. Upload ke Storage
+      final path = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await client.storage.from(_bucket).upload(path, foto!);
+
+      // 2. Ambil URL publik
+      final url = client.storage.from(_bucket).getPublicUrl(path);
+
+      // 3. Simpan ke tabel bukti_pembayaran
+      await client.from('bukti_pembayaran').insert({
+        'pembayaran_id': _pembayaranId,
+        'lokasi_berkas': url,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bukti pembayaran terkirim')),
+      );
+      setState(() {
+        foto = null;
+        tanggalCtrl.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengirim: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -99,9 +149,7 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
               foto = null;
               tanggalCtrl.clear();
             }),
-            onSubmit: () {
-              // TODO: kirim ke server
-            },
+            onSubmit: loading ? () {} : kirimBukti,
           ),
         ],
       ),

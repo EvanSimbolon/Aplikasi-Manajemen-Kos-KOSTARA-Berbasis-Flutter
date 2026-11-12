@@ -1,45 +1,19 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:belajar_dart/domain/models/penghuni.dart';
 
 class PenghuniRepository {
   const PenghuniRepository();
 
-  List<Penghuni> getDaftarPenghuni() {
-    return const [
-      Penghuni(
-        nama: 'Assiya Nazrun',
-        roomDetails: 'Kamar A03 - Apr 2026',
-        status: 'Aktif',
-      ),
-      Penghuni(
-        nama: 'Siti Aisyah',
-        roomDetails: 'Kamar A01 - Apr 2026',
-        status: 'Aktif',
-      ),
-      Penghuni(
-        nama: 'Kamila',
-        roomDetails: 'Kamar A07 - Apr 2026',
-        status: 'Aktif',
-      ),
-      Penghuni(
-        nama: 'Dini Aulia',
-        roomDetails: 'Kamar B02 - Apr 2026',
-        status: 'Aktif',
-      ),
-      Penghuni(
-        nama: 'Zahra Natashya',
-        roomDetails: 'Kamar B06 - Apr 2026',
-        status: 'Tidak Aktif',
-      ),
-      Penghuni(
-        nama: 'Ayuna',
-        roomDetails: 'Kamar A06 - Apr 2026',
-        status: 'Tidak Aktif',
-      ),
-      Penghuni(
-        nama: 'Rina Rahmawati',
-        roomDetails: 'Kamar C01 - Jan 2026',
-        status: 'Tidak Aktif',
-      ),
-    ];
+  Future<List<Penghuni>> getPenghuni() async {
+    final rows = await Supabase.instance.client
+        .from('pengguna')
+        .select(
+        'id, email, nomor_telepon, nama_lengkap, aktif, profil_pengguna(foto_url)')
+        .order('nama_lengkap');
+
+    return (rows as List)
+        .map((e) => Penghuni.fromMap(e as Map<String, dynamic>))
+        .toList();
   }
 }
