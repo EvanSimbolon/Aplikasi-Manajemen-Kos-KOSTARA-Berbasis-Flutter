@@ -18,6 +18,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
   void initState() {
     super.initState();
     _viewModel.addListener(_onViewModelChanged);
+    _viewModel.load();
   }
 
   void _onViewModelChanged() {
@@ -107,16 +108,26 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.search, color: Color(0xFF333333), size: 22),
+                          const Icon(
+                            Icons.search,
+                            color: Color(0xFF333333),
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
                               controller: _searchController,
                               onChanged: _viewModel.cari,
-                              style: const TextStyle(fontSize: 13, color: Colors.black),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black,
+                              ),
                               decoration: const InputDecoration(
                                 hintText: 'Cari Nama / Nomor Kamar',
-                                hintStyle: TextStyle(color: Color(0xFF888888), fontSize: 13),
+                                hintStyle: TextStyle(
+                                  color: Color(0xFF888888),
+                                  fontSize: 13,
+                                ),
                                 border: InputBorder.none,
                                 isDense: true,
                               ),
@@ -128,7 +139,11 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                                 _searchController.clear();
                                 _viewModel.cari('');
                               },
-                              child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                              child: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
                             ),
                         ],
                       ),
@@ -162,25 +177,29 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
             Expanded(
               child: filteredList.isEmpty
                   ? const Center(
-                child: Text(
-                  'Tidak ada data pembayaran',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              )
+                      child: Text(
+                        'Tidak ada data pembayaran',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    )
                   : ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                itemCount: filteredList.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.verifPembayaran,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      itemCount: filteredList.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        return GestureDetector(
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.verifPembayaran,
+                          ),
+                          child: _buildCardPembayaran(filteredList[index]),
+                        );
+                      },
                     ),
-                    child: _buildCardPembayaran(filteredList[index]),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -202,7 +221,9 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
           decoration: BoxDecoration(
             color: isActive ? const Color(0xFF6B3A24) : const Color(0xFFF9EEDD),
             borderRadius: BorderRadius.circular(8),
-            border: isActive ? null : Border.all(color: const Color(0xFFC7B8A2)),
+            border: isActive
+                ? null
+                : Border.all(color: const Color(0xFFC7B8A2)),
           ),
           child: Text(
             label,

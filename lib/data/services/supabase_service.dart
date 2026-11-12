@@ -12,4 +12,13 @@ class SupabaseService {
   static User? get currentUser => client.auth.currentUser;
 
   static bool get isAuthenticated => currentSession != null;
+
+  static bool get isAvailable {
+    try {
+      Supabase.instance.client;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:belajar_dart/data/services/auth_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 
 class ProfilPage extends StatelessWidget {
@@ -162,27 +163,29 @@ class ProfilPage extends StatelessWidget {
                   label: 'Ubah Profil',
                   labelLeft: 78,
                   top: 375,
-                  onTap: () => Navigator.of(context).pushNamed(
-                    AppRoutes.ubahProfil,
-                  ),
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.ubahProfil),
                 ),
                 _buildMenuRow(
                   icon: Icons.settings_outlined,
                   label: 'Pengaturan',
                   labelLeft: 77,
                   top: 405,
-                  onTap: () => Navigator.of(context).pushNamed(
-                    AppRoutes.pengaturan,
-                  ),
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.pengaturan),
                 ),
                 Positioned(
                   left: 138,
                   top: 489,
                   child: GestureDetector(
-                    onTap: () => Navigator.of(context).pushNamedAndRemoveUntil(
-                      AppRoutes.landing,
-                      (route) => false,
-                    ),
+                    onTap: () async {
+                      await const AuthService().logout();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                        AppRoutes.landing,
+                        (route) => false,
+                      );
+                    },
                     child: Container(
                       width: 150,
                       height: 30,
@@ -296,11 +299,7 @@ class ProfilPage extends StatelessWidget {
               const Positioned(
                 right: 12,
                 top: 4,
-                child: Icon(
-                  Icons.chevron_right,
-                  size: 22,
-                  color: _primaryText,
-                ),
+                child: Icon(Icons.chevron_right, size: 22, color: _primaryText),
               ),
             ],
           ),
@@ -329,33 +328,22 @@ class ProfilPage extends StatelessWidget {
             _buildNavItem(
               icon: Icons.home,
               label: 'Beranda',
-              onTap: () => Navigator.of(context).popUntil(
-                (route) => route.isFirst,
-              ),
+              onTap: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
             ),
-            _buildNavItem(
-              icon: Icons.bed,
-              label: 'Kamar',
-            ),
+            _buildNavItem(icon: Icons.bed, label: 'Kamar'),
             _buildNavItem(
               icon: Icons.credit_card,
               label: 'Pembayaran',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.kalender,
-              ),
+              onTap: () => Navigator.of(context).pushNamed(AppRoutes.kalender),
             ),
             _buildNavItem(
               icon: Icons.build,
               label: 'Maintenance',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.maintenance,
-              ),
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.maintenance),
             ),
-            _buildNavItem(
-              icon: Icons.person,
-              label: 'Profil',
-              active: true,
-            ),
+            _buildNavItem(icon: Icons.person, label: 'Profil', active: true),
           ],
         ),
       ),

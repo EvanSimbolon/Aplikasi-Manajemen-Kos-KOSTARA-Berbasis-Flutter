@@ -1,9 +1,43 @@
 import 'package:flutter/material.dart';
+
+import 'package:belajar_dart/data/repositories/auth_repository.dart';
+import 'package:belajar_dart/data/services/supabase_service.dart';
+import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
+
 import 'login_screen.dart';
 
-class LandingScreen extends StatelessWidget {
+class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
+
+  @override
+  State<LandingScreen> createState() => _LandingScreenState();
+}
+
+class _LandingScreenState extends State<LandingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _cekSesi();
+  }
+
+  Future<void> _cekSesi() async {
+    if (!SupabaseService.isAvailable || !SupabaseService.isAuthenticated) {
+      return;
+    }
+
+    try {
+      final role = await const AuthRepository().currentRole();
+      if (!mounted || role == null) return;
+
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        role == 'pemilik' ? AppRoutes.adminDashboard : AppRoutes.dashboard,
+        (route) => false,
+      );
+    } catch (_) {
+      // Biarkan pengguna tetap di halaman masuk jika sesi tidak valid.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,19 +48,13 @@ class LandingScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Jarak dari atas ke logo
               const SizedBox(height: 60),
-
-              // Logo Gambar Kostara
               Image.asset(
-                'assets/logo_kostara.png', // Sesuaikan ekstensi file Anda (.png / .jpg)
-                height: 120,               // Sesuaikan tinggi logo jika perlu
+                'assets/logo_kostara.png',
+                height: 120,
                 fit: BoxFit.contain,
               ),
-
-              // Jarak dari logo ke teks sambutan (Dibuat rapat)
               const SizedBox(height: 16),
-
               const Text(
                 'Selamat datang di KOSTARA',
                 style: TextStyle(
@@ -35,21 +63,12 @@ class LandingScreen extends StatelessWidget {
                   color: AppTheme.primaryDark,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               const Text(
                 'Masuk Sebagai',
                 style: TextStyle(color: Colors.black54, fontSize: 13),
               ),
-
-              // =========================================================
-              // UBAH JARAK DI SINI: Diganti dari Spacer ke SizedBox(height: 24)
-              // Agar tulisan "Masuk Sebagai" rapat ke tombol di bawahnya
-              // =========================================================
               const SizedBox(height: 24),
-
-              // Tombol Penghuni Kos
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -71,10 +90,7 @@ class LandingScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              // Tombol Admin
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -96,7 +112,6 @@ class LandingScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 40),
             ],
           ),
