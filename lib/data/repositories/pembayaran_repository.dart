@@ -1,74 +1,109 @@
-import 'package:belajar_dart/domain/models/pembayaran.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:belajar_dart/domain/models/pembayaran.dart';
+import 'package:flutter/foundation.dart';
 
 class PembayaranRepository {
   final SupabaseClient _supabase;
 
-PembayaranRepository({SupabaseClient? supabase})
+  PembayaranRepository({SupabaseClient? supabase})
       : _supabase = supabase ?? Supabase.instance.client;
 
-/// Mengambil daftar pembayaran dari Supabase dengan opsi filter status
+  /// Mengambil daftar pembayaran dan tagihan belum dibayar dari Supabase
   Future<List<Pembayaran>> getDaftarPembayaran({String filterStatus = 'Semua'}) async {
-    try {
-      // Menyiapkan query relasi dari tabel pembayaran ke tagihan, penyewaan, dan pengguna
-      var query = _supabase.from('pembayaran').select('''
-        id,
-        status,
-        jumlah_pembayaran,
-        pembayar:pengguna!pembayar_id(nama_lengkap),
-        tagihan:tagihan_id(
-          periode_mulai,
-          penyewaan:penyewaan_id(
-            kamar:kamar_id(nomor_kamar)
-          )
-        )
-      ''');
+    final List<Pembayaran> hasilGabungan = [];
+    final statusNormalized = filterStatus.trim();
 
-      // Penerapan filter status jika bukan 'Semua'
-      if (filterStatus != 'Semua') {
-        query = query.eq('status', filterStatus);
-      }
+    // 1. Ambil dari tabel 'pembayaran' (untuk 'Semua', 'Menunggu', 'Lunas', 'Ditolak')
+    if (statusNormalized != 'Belum Dibayar') {
+      try {
+        var queryPembayaran = _supabase.from('pembayaran').select('''
+          id,
+          tagihan_id,
+          pengguna!pembayaran_pembayar_id_fkey (
+            nama_lengkap
+          ),
+          tagihan (
+            penyewaan (
+              kamar (
+                nomor_kamar
+              )
+            )
+          ),
+          jumlah_pembayaran,
+          dibayar_pada,
+          status,
+          bukti_pembayaran (
+            lokasi_berkas
+          ),
+          catatan
+        ''');
 
-      final List<dynamic> response = await query.order('dibayar_pada', ascending: false);
+        final String? dbStatus = switch (statusNormalized) {
+          'Menunggu' => 'menunggu_verifikasi',
+          'Lunas' => 'terverifikasi',
+          'Ditolak' => 'ditolak',
+          _ => null, // 'Semua' -> tanpa filter eq
+        };
 
-      // Mapping data JSON dari Supabase ke Model Pembayaran
-      return response.map((data) {
-        final namaPenghuni = data['pembayar']?['nama_lengkap'] ?? 'Penghuni';
-        final nomorKamar = data['tagihan']?['penyewaan']?['kamar']?['nomor_kamar'] ?? '-';
-        final nominalFormat = 'Rp ${data['jumlah_pembayaran']}';
-        
-        return Pembayaran(
-          nama: namaPenghuni,
-          kamar: 'Kamar $nomorKamar',
-          nominal: nominalFormat,
-          status: data['status'] ?? 'Belum Dibayar',
+        final List<dynamic> resPembayaran = dbStatus != null
+            ? await queryPembayaran.eq('status', dbStatus)
+            : await queryPembayaran;
+
+        hasilGabungan.addAll(
+          resPembayaran.map((data) => Pembayaran.fromJson(data as Map<String, dynamic>)),
         );
-      }).toList();
-    } catch (e) {
-      throw Exception('Gagal mengambil data pembayaran: $e');
+      } catch (e) {
+        debugPrint('ERROR QUERY PEMBAYARAN ($statusNormalized): $e');
+      }
     }
+
+    // 2. Ambil dari tabel 'tagihan' (untuk 'Semua' dan 'Belum Dibayar')
+    if (statusNormalized == 'Semua' || statusNormalized == 'Belum Dibayar') {
+      try {
+        final List<dynamic> resTagihan = await _supabase
+            .from('tagihan')
+            .select('''
+              *,
+              penyewaan (
+                pengguna (
+                  nama_lengkap
+                ),
+                kamar (
+                  nomor_kamar
+                )
+              )
+            ''')
+            .inFilter('status', ['belum_bayar', 'terlambat']);
+
+        hasilGabungan.addAll(
+          resTagihan.map((data) => Pembayaran.fromTagihanJson(data as Map<String, dynamic>)),
+        );
+      } catch (e) {
+        debugPrint('ERROR QUERY TAGIHAN ($statusNormalized): $e');
+      }
+    }
+
+    return hasilGabungan;
   }
 
-  /// Verifikasi status pembayaran oleh Admin (Terima / Tolak)
+  /// Verifikasi status pembayaran oleh Admin
   Future<void> verifikasiPembayaran({
     required String pembayaranId,
     required String tagihanId,
     required String adminId,
     required bool statusSetuju,
   }) async {
-    final statusText = statusSetuju ? 'Lunas' : 'Ditolak';
+    final statusPembayaran = statusSetuju ? 'terverifikasi' : 'ditolak';
+    final statusTagihan = statusSetuju ? 'lunas' : 'belum_bayar';
 
-    // 1. Update status transaksi di tabel pembayaran
     await _supabase.from('pembayaran').update({
-      'status': statusText,
-      'pemeriksa_id': adminId,
-      'diperiksa_pada': DateTime.now().toIso8601String(),
+      'status': statusPembayaran,
+      if (adminId.isNotEmpty && adminId != 'admin') 'pemeriksa_id': adminId,
     }).eq('id', pembayaranId);
 
-    // 2. Jika disetujui, update status di tabel tagihan menjadi Lunas
-    if (statusSetuju) {
+    if (tagihanId.isNotEmpty) {
       await _supabase.from('tagihan').update({
-        'status': 'Lunas',
+        'status': statusTagihan,
       }).eq('id', tagihanId);
     }
   }
