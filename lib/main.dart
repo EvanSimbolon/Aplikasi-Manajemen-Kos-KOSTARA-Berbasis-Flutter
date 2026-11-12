@@ -12,7 +12,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://cbvhufmufcredviwguko.supabase.co',
-    anonKey: 'sb_secret_UTpTg47LZEvB654EaongmQ_N7PyVtDu',
+    anonKey: 'ISI_ANON_KEY_DI_SINI',
   );
 
   await initializeDateFormatting('id_ID');
