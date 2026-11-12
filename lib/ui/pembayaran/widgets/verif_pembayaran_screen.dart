@@ -1,50 +1,130 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:belajar_dart/domain/models/pembayaran.dart';
+import 'package:belajar_dart/ui/pembayaran/view_models/pembayaran_view_model.dart';
 
-class verif_pembayaran extends StatelessWidget {
-  const verif_pembayaran({Key? key}) : super(key: key);
+// Class verif_pembayaran disesuaikan dengan rujukan di AppRouter (lowercase)
+class verif_pembayaran extends StatefulWidget {
+  const verif_pembayaran({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const PaymentVerificationScreen();
+  State<verif_pembayaran> createState() => _VerifPembayaranState();
+}
+
+class _VerifPembayaranState extends State<verif_pembayaran> {
+  bool _isProcessing = false;
+
+  /// Memproses aksi Tolak / Terima pembayaran melalui PembayaranViewModel
+  Future<void> _prosesVerifikasi(
+      BuildContext context, {
+        required Pembayaran item,
+        required bool statusSetuju,
+      }) async {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    final viewModel = context.read<PembayaranViewModel>();
+
+    final success = await viewModel.verifikasi(
+      pembayaranId: item.id,
+      tagihanId: item.tagihanId,
+      adminId: 'admin',
+      statusSetuju: statusSetuju,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isProcessing = false;
+    });
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            statusSetuju
+                ? 'Pembayaran berhasil diterima'
+                : 'Pembayaran telah ditolak',
+          ),
+          backgroundColor: statusSetuju ? Colors.green : Colors.red,
+        ),
+      );
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal memproses verifikasi pembayaran'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
-}
 
-// Diubah dari StatelessWidget menjadi StatefulWidget agar 'context' bisa diakses dengan aman di mana saja
-class PaymentVerificationScreen extends StatefulWidget {
-  const PaymentVerificationScreen({Key? key}) : super(key: key);
-
-  @override
-  State<PaymentVerificationScreen> createState() => _PaymentVerificationScreenState();
-}
-
-class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
-  // Path ke file gambar di dalam aset proyek lokal kamu
-  final String localImagePath = 'assets/img/bukti_transfer.jpg';
+  /// Mengambil nama berkas dari URL bukti transfer
+  String _ekstrakNamaBerkas(String url) {
+    try {
+      final uri = Uri.parse(url);
+      if (uri.pathSegments.isNotEmpty) {
+        return uri.pathSegments.last;
+      }
+    } catch (_) {}
+    return 'bukti_transfer.jpg';
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Membaca argumen data Pembayaran yang dikirim dari halaman sebelumnya
+    final item = ModalRoute.of(context)?.settings.arguments as Pembayaran?;
+
+    if (item == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFF8E7),
+        appBar: AppBar(
+          title: const Text(
+            'Verifikasi Pembayaran',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: const Color(0xFF854836),
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: const Center(
+          child: Text('Data pembayaran tidak ditemukan'),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8E7),
-      // Menggunakan Column + Expanded SingleChildScrollView agar layout presisi di batas layar
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header bertema cokelat
+            // Header bertema cokelat dengan hiasan lingkaran kuning
             _buildHeader(),
 
             // Card Utama Konten Verifikasi (Overlap ke atas)
             Transform.translate(
-              offset: const Offset(0, -40), // Dikurangi dari -60 ke -40 agar tidak terlalu naik
+              offset: const Offset(0, -40),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    _buildMainCard(),
+                    _buildMainCard(item),
                     const SizedBox(height: 24),
-                    // Tombol Tolak dan Terima
-                    _buildActionButtons(),
-                    const SizedBox(height: 24), // Margin bawah agar tidak terpotong saat di-scroll
+                    // Tombol Tolak dan Terima (atau indikator loading saat diproses)
+                    if (item.status == 'menunggu_verifikasi') ...[
+                      if (_isProcessing)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF854836),
+                          ),
+                        )
+                      else
+                        _buildActionButtons(item),
+                      const SizedBox(height: 24),
+                    ],
                   ],
                 ),
               ),
@@ -56,15 +136,13 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
   }
 
   Widget _buildHeader() {
-    // Mengambil tinggi status bar perangkat secara dinamis
     final double statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Container(
       width: double.infinity,
-      // Tinggi disesuaikan: 140px untuk konten + tinggi status bar HP
       height: 140 + statusBarHeight,
       decoration: const BoxDecoration(
-        color: Color(0xFF854836), // Cokelat khas UI
+        color: Color(0xFF854836),
       ),
       child: ClipRect(
         child: Stack(
@@ -88,7 +166,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
 
             // Tombol Kembali dan Judul Halaman di bawah Status Bar
             Positioned(
-              top: statusBarHeight + 10, // Menyesuaikan jarak persis dari bawah Status Bar
+              top: statusBarHeight + 10,
               left: 16,
               right: 16,
               child: Row(
@@ -121,23 +199,26 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
     );
   }
 
-  // Kartu Putih Utama dengan Data Penyewa, Rincian, dan Bukti Transfer
-  Widget _buildMainCard() {
+  // Kartu Putih Utama dengan Data Penyewa, Rincian, dan Bukti Transfer dari Model
+  Widget _buildMainCard(Pembayaran item) {
+    final hasBukti =
+        item.buktiTransfer != null && item.buktiTransfer!.trim().isNotEmpty;
+
     return Container(
       width: double.infinity,
-      padding:EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color:Color(0xFFFFFBF3), // Cream/Off-white
+        color: const Color(0xFFFFFBF3),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color:Color(0xFFDEC9A4), // Border oranye soft
+          color: const Color(0xFFDEC9A4),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset:Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -150,43 +231,45 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
               Container(
                 width: 56,
                 height: 56,
-                decoration:BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Color(0xFFC07F00),
                   shape: BoxShape.circle,
                 ),
-                child:Icon(
+                child: const Icon(
                   Icons.person,
                   color: Colors.white,
                   size: 38,
                 ),
               ),
-              SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Zahra Natashya',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000000),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.nama,
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF000000),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Kamar B06',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFC07F00),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Kamar ${item.kamar}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFC07F00),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
 
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
           // Judul Rincian Pembayaran
           Text(
@@ -194,22 +277,23 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
             style: GoogleFonts.inter(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF000000),
+              color: const Color(0xFF000000),
             ),
           ),
-          SizedBox(height: 8),
-          Divider(color: Color(0xFFCCCCCC), thickness: 2),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
+          const Divider(color: Color(0xFFCCCCCC), thickness: 2),
+          const SizedBox(height: 8),
 
-          // Detail Tabel Rincian
-          _buildDetailRow('Nominal Tagihan', 'Rp 1.500.000'),
-          _buildDetailRow('Periode', 'April 2026'),
-          _buildDetailRow('Tanggal Transaksi', '10 April 2026'),
-          _buildDetailRow('Metode Pembayaran', 'Transfer Bank'),
+          // Detail Tabel Rincian Dinamis
+          _buildDetailRow('Nominal Tagihan', item.nominalFormatted),
+          _buildDetailRow('Tanggal Transaksi', item.tanggalFormatted),
+          _buildDetailRow('Status Saat Ini', item.statusFormatted),
+          if (item.catatan != null && item.catatan!.trim().isNotEmpty)
+            _buildDetailRow('Catatan', item.catatan!),
 
-          SizedBox(height: 12),
-          Divider(color: Color(0xFFCCCCCC), thickness: 2),
-          SizedBox(height: 16),
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFFCCCCCC), thickness: 2),
+          const SizedBox(height: 16),
 
           // Judul Bukti Pembayaran
           Text(
@@ -217,54 +301,78 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
             style: GoogleFonts.inter(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF000000),
+              color: const Color(0xFF000000),
             ),
           ),
-          SizedBox(height: 8),
-          Divider(color: Color(0xFFCCCCCC), thickness: 2),
-          SizedBox(height: 12),
+          const SizedBox(height: 8),
+          const Divider(color: Color(0xFFCCCCCC), thickness: 2),
+          const SizedBox(height: 12),
 
-          // Container Lampiran Bukti Transfer dengan Kotak Berwarna & Border
+          // Container Lampiran Bukti Transfer
           Container(
-            padding: const EdgeInsets.all(16), // Padding di dalam kotak
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFEFECE6), // Warna latar belakang kotak (krem/abu-abu soft)
-              borderRadius: BorderRadius.circular(16), // Sudut melengkung
+              color: const Color(0xFFEFECE6),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: const Color(0x60D3A46F), // Warna garis tepi/border (opsional)
+                color: const Color(0x60D3A46F),
                 width: 1,
               ),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center, // Memposisikan gambar & teks di tengah secara vertikal
+            child: hasBukti
+                ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Gambar Bukti Pembayaran
+                // Gambar Bukti Pembayaran dari Network (Supabase)
                 GestureDetector(
-                  onTap: () => _showImagePreviewDialog(localImagePath),
+                  onTap: () =>
+                      _showImagePreviewDialog(item.buktiTransfer!),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        Image.asset(
-                          localImagePath,
+                        Image.network(
+                          item.buktiTransfer!,
                           width: 110,
                           height: 140,
                           fit: BoxFit.cover,
+                          loadingBuilder:
+                              (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: 110,
+                              height: 140,
+                              color: Colors.grey[200],
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF854836),
+                                ),
+                              ),
+                            );
+                          },
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
                               width: 110,
                               height: 140,
                               color: Colors.grey[300],
                               child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisAlignment:
+                                MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.broken_image, color: Colors.grey),
+                                  const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                  ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Asset tidak\nditemukan',
+                                    'Gagal memuat\ngambar',
                                     textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(fontSize: 10, color: Colors.grey),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      color: Colors.grey[700],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -278,7 +386,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
+                              color: Colors.black.withValues(alpha: 0.6),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -295,23 +403,25 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
 
                 const SizedBox(width: 16),
 
-                // Detail Nama File & Ukuran File di Sebelah Kanan Gambar
+                // Detail Nama File & Petunjuk Zoom
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'bukti_transfer.jpg',
+                        _ekstrakNamaBerkas(item.buktiTransfer!),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF757575),
+                          color: const Color(0xFF4C3D3D),
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '220 kb',
+                        'Ketuk gambar untuk memperbesar',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -321,6 +431,28 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                   ),
                 ),
               ],
+            )
+                : SizedBox(
+              width: double.infinity,
+              height: 110,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.image_not_supported,
+                    size: 36,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Belum ada foto bukti pembayaran',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -328,8 +460,8 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
     );
   }
 
-  // Dialog untuk memperbesar gambar lokal saat diklik
-  void _showImagePreviewDialog(String imageAssetPath) {
+  // Dialog untuk memperbesar gambar bukti transfer dari URL
+  void _showImagePreviewDialog(String imageUrl) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -337,15 +469,15 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
 
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding:EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          insetPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Stack(
             alignment: Alignment.topRight,
             children: [
-              // Kontainer Gambar dengan Batasan Ukuran (Constraints)
               Container(
-                width: screenSize.width * 0.85, // Lebar 85% layar
+                width: screenSize.width * 0.85,
                 constraints: BoxConstraints(
-                  maxHeight: screenSize.height * 0.7, // DITULIS DI SINI (Maksimal tinggi 70% layar)
+                  maxHeight: screenSize.height * 0.7,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.black,
@@ -355,24 +487,23 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                 child: InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 4.0,
-                  child: Image.asset(
-                    imageAssetPath,
+                  child: Image.network(
+                    imageUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        padding:EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         color: Colors.white,
-                        child:Text('Gagal memuat gambar dari asset.'),
+                        child: const Text('Gagal memuat gambar bukti transfer.'),
                       );
                     },
                   ),
                 ),
               ),
-              // Tombol Tutup (Close)
               Padding(
-                padding:EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(8.0),
                 child: IconButton(
-                  icon:Icon(Icons.close, color: Colors.white, size: 30),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),
@@ -388,10 +519,10 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Memberikan lebar tetap (fixed width) pada label agar teks sebelah kanan terikat pada satu garis vertikal yang sama
           SizedBox(
-            width: 200, // Sesuaikan lebar label sesuai kebutuhan
+            width: 155,
             child: Text(
               label,
               style: GoogleFonts.inter(
@@ -404,7 +535,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
           Expanded(
             child: Text(
               value,
-              textAlign: TextAlign.left, // Teks kanan sekarang sejajar rata kiri
+              textAlign: TextAlign.left,
               style: GoogleFonts.inter(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -418,7 +549,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
   }
 
   // Tombol Tolak (Outline) dan Terima (Kuning Solid)
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(Pembayaran item) {
     return Row(
       children: [
         // Tombol Tolak
@@ -426,22 +557,22 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
           child: SizedBox(
             height: 48,
             child: OutlinedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Pembayaran Ditolak')),
-                );
-              },
+              onPressed: () => _prosesVerifikasi(
+                context,
+                item: item,
+                statusSetuju: false,
+              ),
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
-                side:BorderSide(color: Color(0xFFC07F00), width: 1.5),
+                side: const BorderSide(color: Color(0xFFC07F00), width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child:Text(
+              child: Text(
                 'Tolak',
                 style: GoogleFonts.inter(
-                  color: Color(0xFFFFB22C),
+                  color: const Color(0xFFFFB22C),
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -450,26 +581,26 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
           ),
         ),
 
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
 
         // Tombol Terima
         Expanded(
           child: SizedBox(
             height: 48,
             child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Pembayaran Diterima')),
-                );
-              },
+              onPressed: () => _prosesVerifikasi(
+                context,
+                item: item,
+                statusSetuju: true,
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor:Color(0xFFFFB22C), // Yellow/Orange solid
+                backgroundColor: const Color(0xFFFFB22C),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child:Text(
+              child: Text(
                 'Terima',
                 style: GoogleFonts.inter(
                   color: Colors.black,
