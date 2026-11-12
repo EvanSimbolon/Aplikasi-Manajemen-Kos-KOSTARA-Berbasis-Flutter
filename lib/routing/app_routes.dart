@@ -11,17 +11,37 @@ class AppRoutes {
   static const String ubahProfil = '/ubah-profil';
   static const String pengaturan = '/pengaturan';
 
+  // =========================
+  // ADMIN
+  // =========================
+
   static const String adminDashboard = '/admin';
   static const String dataKamar = '/admin/kamar';
-  static const String dataPembayaran = '/admin/pembayaran';
-  static const String dataPenghuni = '/admin/penghuni';
-  static const String formPenghuni = '/admin/tambah-penghuni';
-  static const String verifPembayaran = '/admin/verif-pembayaran';
+  static const String dataFasilitasKamar =
+      '/admin/fasilitas-kamar';
+  static const String dataPembayaran =
+      '/admin/pembayaran';
+  static const String dataPenghuni =
+      '/admin/penghuni';
+  static const String formPenghuni =
+      '/admin/tambah-penghuni';
+  static const String verifPembayaran =
+      '/admin/verif-pembayaran';
 
-  static const String tenantKeluhan = '/penghuni/keluhan';
-  static const String tenantRiwayat = '/penghuni/riwayat';
-  static const String tenantBuktiPembayaran = '/penghuni/bukti-pembayaran';
-  static const String tenantProfil = '/penghuni/profil';
-  static const String tenantUbahProfil = '/penghuni/ubah-profil';
-  static const String tenantPengaturan = '/penghuni/pengaturan';
+  // =========================
+  // PENGHUNI
+  // =========================
+
+  static const String tenantKeluhan =
+      '/penghuni/keluhan';
+  static const String tenantRiwayat =
+      '/penghuni/riwayat';
+  static const String tenantBuktiPembayaran =
+      '/penghuni/bukti-pembayaran';
+  static const String tenantProfil =
+      '/penghuni/profil';
+  static const String tenantUbahProfil =
+      '/penghuni/ubah-profil';
+  static const String tenantPengaturan =
+      '/penghuni/pengaturan';
 }
