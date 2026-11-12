@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:belajar_dart/domain/models/pembayaran.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/pembayaran/view_models/pembayaran_view_model.dart';
@@ -12,29 +13,26 @@ class DataPembayaranPage extends StatefulWidget {
 
 class _DataPembayaranPageState extends State<DataPembayaranPage> {
   final TextEditingController _searchController = TextEditingController();
-  final PembayaranViewModel _viewModel = PembayaranViewModel();
 
   @override
   void initState() {
     super.initState();
-    _viewModel.addListener(_onViewModelChanged);
-  }
-
-  void _onViewModelChanged() {
-    if (mounted) setState(() {});
+    // Memanggil fetching data saat screen pertama kali dibuka
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PembayaranViewModel>().fetchPembayaran('Semua');
+    });
   }
 
   @override
   void dispose() {
-    _viewModel.removeListener(_onViewModelChanged);
-    _viewModel.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filteredList = _viewModel.daftarPembayaran;
+    final viewModel = context.watch<PembayaranViewModel>();
+    final filteredList = viewModel.daftarPembayaran;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF7D4),
@@ -99,7 +97,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -112,7 +110,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                           Expanded(
                             child: TextField(
                               controller: _searchController,
-                              onChanged: _viewModel.cari,
+                              onChanged: (val) => viewModel.cari(val),
                               style: const TextStyle(fontSize: 13, color: Colors.black),
                               decoration: const InputDecoration(
                                 hintText: 'Cari Nama / Nomor Kamar',
@@ -122,11 +120,11 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                               ),
                             ),
                           ),
-                          if (_viewModel.keyword.isNotEmpty)
+                          if (viewModel.keyword.isNotEmpty)
                             GestureDetector(
                               onTap: () {
                                 _searchController.clear();
-                                _viewModel.cari('');
+                                viewModel.cari('');
                               },
                               child: const Icon(Icons.close, size: 18, color: Colors.grey),
                             ),
@@ -140,27 +138,33 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
 
             const SizedBox(height: 14),
 
-            // ================= TOMBOL FILTER RESPONTIF (TAB) =================
+            // ================= TOMBOL FILTER RESPONSIP (TAB) =================
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  _buildFilterTab('Semua'),
+                  _buildFilterTab(context, 'Semua'),
                   const SizedBox(width: 8),
-                  _buildFilterTab('Belum Dibayar'),
+                  _buildFilterTab(context, 'Belum Dibayar'),
                   const SizedBox(width: 8),
-                  _buildFilterTab('Menunggu'),
+                  _buildFilterTab(context, 'Menunggu'),
                   const SizedBox(width: 8),
-                  _buildFilterTab('Lunas'),
+                  _buildFilterTab(context, 'Lunas'),
                 ],
               ),
             ),
 
             const SizedBox(height: 14),
 
-            // ================= LIST TRANSAKSI RESPONTIF =================
+            // ================= LIST TRANSAKSI RESPONSIP =================
             Expanded(
-              child: filteredList.isEmpty
+              child: viewModel.isLoading
+                  ? const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF854836),
+                ),
+              )
+                  : filteredList.isEmpty
                   ? const Center(
                 child: Text(
                   'Tidak ada data pembayaran',
@@ -172,12 +176,14 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                 itemCount: filteredList.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
+                  final item = filteredList[index];
                   return GestureDetector(
                     onTap: () => Navigator.pushNamed(
                       context,
                       AppRoutes.verifPembayaran,
+                      arguments: item,
                     ),
-                    child: _buildCardPembayaran(filteredList[index]),
+                    child: _buildCardPembayaran(item),
                   );
                 },
               ),
@@ -188,13 +194,14 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
     );
   }
 
-  // Widget Tab Filter yang langsung mengubah tampilan saat ditekan
-  Widget _buildFilterTab(String label) {
-    final bool isActive = _viewModel.filter == label;
+  // Widget Tab Filter yang terhubung langsung ke ViewModel
+  Widget _buildFilterTab(BuildContext context, String label) {
+    final viewModel = context.watch<PembayaranViewModel>();
+    final bool isActive = viewModel.filter == label;
 
     return Expanded(
       child: GestureDetector(
-        onTap: () => _viewModel.setFilter(label),
+        onTap: () => viewModel.setFilter(label),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           height: 34,
@@ -218,17 +225,22 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
     );
   }
 
+  // Widget Card Pembayaran Kustom dengan Avatar & Badge Warna
+  // Widget Card Pembayaran Kustom dengan Avatar & Badge Warna
   Widget _buildCardPembayaran(Pembayaran item) {
     Color badgeBg;
     Color badgeText;
 
-    if (item.status == 'Belum Dibayar') {
+    if (item.status == 'belum_bayar' ||
+        item.status == 'terlambat' ||
+        item.status == 'ditolak') {
       badgeBg = const Color(0xFFEC5E53);
       badgeText = const Color(0xFF221313);
-    } else if (item.status == 'Menunggu') {
+    } else if (item.status == 'menunggu_verifikasi') {
       badgeBg = const Color(0xFFE0EC7F);
       badgeText = const Color(0xFF35300F);
     } else {
+      // Untuk status 'terverifikasi' / 'lunas'
       badgeBg = const Color(0xFF7BD768);
       badgeText = const Color(0xFF133210);
     }
@@ -280,7 +292,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item.nominal,
+                    item.nominalFormatted,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -302,7 +314,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                item.status,
+                item.statusFormatted,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
