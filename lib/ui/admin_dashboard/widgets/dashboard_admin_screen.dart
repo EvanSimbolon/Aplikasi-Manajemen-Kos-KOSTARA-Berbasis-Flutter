@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardAdminScreen extends StatefulWidget {
   const DashboardAdminScreen({super.key});
@@ -11,6 +14,155 @@ class DashboardAdminScreen extends StatefulWidget {
 
 class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
   int _selectedIndex = 0;
+
+  final supabase = Supabase.instance.client;
+
+  int totalPenghuni = 0;
+  double totalPembayaran = 0; // pembayaran terverifikasi bulan ini
+  double totalMenunggu = 0; // pembayaran menunggu verifikasi bulan ini
+  bool loadingPenghuni = true;
+  bool loadingPembayaran = true;
+  String? pesanError;
+
+  StreamSubscription<List<Map<String, dynamic>>>? _penghuniSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _pembayaranSub;
+
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('DASH: initState versi baru jalan');
+    _muatAwal();
+    _listenPenghuni();
+    _listenPembayaran();
+  }
+
+  @override
+  void dispose() {
+    _penghuniSub?.cancel();
+    _pembayaranSub?.cancel();
+    super.dispose();
+  }
+
+  /// Penghuni dihitung jika status 'aktif', atau 'menunggu_mulai'
+  /// tetapi tanggal_mulai sudah tiba/lewat. Dihitung unik per penghuni_id.
+  void _hitungPenghuni(List<Map<String, dynamic>> rows) {
+    final now = DateTime.now();
+    final hariIni = DateTime(now.year, now.month, now.day);
+
+    final unik = rows.where((r) {
+      final status = r['status'];
+      if (status == 'aktif') return true;
+
+      if (status == 'menunggu_mulai') {
+        final mulai = DateTime.tryParse(r['tanggal_mulai']?.toString() ?? '');
+        return mulai != null && !mulai.isAfter(hariIni);
+      }
+      return false;
+    }).map((r) => r['penghuni_id']).toSet();
+
+    if (!mounted) return;
+    setState(() {
+      totalPenghuni = unik.length;
+      loadingPenghuni = false;
+    });
+  }
+
+  /// Ringkasan pembayaran bulan ini (terverifikasi & menunggu verifikasi)
+  void _hitungPembayaran(List<Map<String, dynamic>> rows) {
+    final now = DateTime.now();
+    final awalBulan = DateTime(now.year, now.month, 1);
+    final awalBulanDepan = DateTime(now.year, now.month + 1, 1);
+
+    double verifikasi = 0;
+    double menunggu = 0;
+
+    for (final row in rows) {
+      final dibayar =
+      DateTime.tryParse(row['dibayar_pada']?.toString() ?? '')?.toLocal();
+      if (dibayar == null ||
+          dibayar.isBefore(awalBulan) ||
+          !dibayar.isBefore(awalBulanDepan)) {
+        continue;
+      }
+
+      final jumlah = double.tryParse(row['jumlah_pembayaran'].toString()) ?? 0;
+
+      if (row['status'] == 'terverifikasi') {
+        verifikasi += jumlah;
+      } else if (row['status'] == 'menunggu_verifikasi') {
+        menunggu += jumlah;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      totalPembayaran = verifikasi;
+      totalMenunggu = menunggu;
+      loadingPembayaran = false;
+    });
+  }
+
+  /// Pengambilan data awal (select biasa) -> tetap jalan walau realtime gagal
+  Future<void> _muatAwal() async {
+    try {
+      final data = await supabase.from('penyewaan').select();
+      debugPrint('DASH penyewaan select: ${data.length} baris');
+      _hitungPenghuni(List<Map<String, dynamic>>.from(data));
+    } catch (e) {
+      debugPrint('DASH penyewaan select ERROR: $e');
+      if (!mounted) return;
+      setState(() {
+        loadingPenghuni = false;
+        pesanError = 'penyewaan: $e';
+      });
+    }
+
+    try {
+      final data = await supabase.from('pembayaran').select();
+      debugPrint('DASH pembayaran select: ${data.length} baris');
+      _hitungPembayaran(List<Map<String, dynamic>>.from(data));
+    } catch (e) {
+      debugPrint('DASH pembayaran select ERROR: $e');
+      if (!mounted) return;
+      setState(() {
+        loadingPembayaran = false;
+        pesanError = 'pembayaran: $e';
+      });
+    }
+  }
+
+  /// Realtime penyewaan
+  void _listenPenghuni() {
+    _penghuniSub =
+        supabase.from('penyewaan').stream(primaryKey: ['id']).listen(
+              (rows) {
+            debugPrint('DASH penyewaan stream: ${rows.length} baris');
+            _hitungPenghuni(rows);
+          },
+          onError: (e) => debugPrint('DASH penyewaan stream ERROR: $e'),
+        );
+  }
+
+  /// Realtime pembayaran
+  void _listenPembayaran() {
+    _pembayaranSub =
+        supabase.from('pembayaran').stream(primaryKey: ['id']).listen(
+              (rows) {
+            debugPrint('DASH pembayaran stream: ${rows.length} baris');
+            _hitungPembayaran(rows);
+          },
+          onError: (e) => debugPrint('DASH pembayaran stream ERROR: $e'),
+        );
+  }
+
+  /// 1200000 -> "Rp 1.200.000"
+  String _formatRupiah(double nilai) {
+    final angka = nilai.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (m) => '.',
+    );
+    return 'Rp $angka';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +197,13 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                   ),
                 ],
               ),
+              if (pesanError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Gagal memuat data -> $pesanError',
+                  style: const TextStyle(color: Colors.red, fontSize: 11),
+                ),
+              ],
               const SizedBox(height: 16),
 
               // Card Total Penghuni
@@ -76,16 +235,16 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,
                             textBaseline: TextBaseline.alphabetic,
-                            children: const [
+                            children: [
                               Text(
-                                '24 ',
-                                style: TextStyle(
+                                loadingPenghuni ? '...' : '$totalPenghuni ',
+                                style: const TextStyle(
                                   color: Color(0xFF2B1810),
                                   fontSize: 42,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              Text(
+                              const Text(
                                 'Orang',
                                 style: TextStyle(
                                   color: Color(0xFF2B1810),
@@ -100,7 +259,8 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               shape: RoundedRectangleBorder(
@@ -138,7 +298,8 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                               width: 135,
                               height: 110,
                               color: Colors.black26,
-                              child: const Icon(Icons.image, color: Colors.white54, size: 36),
+                              child: const Icon(Icons.image,
+                                  color: Colors.white54, size: 36),
                             ),
                           );
                         },
@@ -162,12 +323,32 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                   children: [
                     const Text(
                       'Ringkasan bulan ini',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppTheme.primaryDark),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          color: AppTheme.primaryDark),
                     ),
                     const SizedBox(height: 2),
-                    const Text('Pembayaran masuk', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                    const SizedBox(height: 4),
-                    const Text('Rp 18.500.000', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFB54F00))),
+                    const Text('Pembayaran masuk',
+                        style: TextStyle(fontSize: 11, color: Colors.black54)),
+                    Text(
+                      loadingPembayaran
+                          ? 'Memuat...'
+                          : _formatRupiah(totalPembayaran),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB54F00),
+                      ),
+                    ),
+                    if (!loadingPembayaran && totalMenunggu > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Menunggu verifikasi: ${_formatRupiah(totalMenunggu)}',
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.black54),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     CustomPaint(
                       size: const Size(double.infinity, 25),
@@ -201,45 +382,44 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                   _buildMenuItem(
                     Icons.home_rounded,
                     'Kamar Tersedia',
-                    () => Navigator.pushNamed(context, AppRoutes.dataKamar),
+                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
                   ),
                   _buildMenuItem(
                     Icons.group_rounded,
                     'Kamar Terisi',
-                    () => Navigator.pushNamed(context, AppRoutes.dataKamar),
+                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
                   ),
-
-                  // IKON BELUM DIBAYAR DIGANTI SESUAI GAMBAR ACUAN
                   _buildMenuItem(
                     Icons.credit_card_rounded,
                     'Belum Dibayar',
-                    () => Navigator.pushNamed(context, AppRoutes.dataPembayaran),
+                        () =>
+                        Navigator.pushNamed(context, AppRoutes.dataPembayaran),
                   ),
-
                   _buildMenuItem(
                     Icons.add_home_rounded,
                     'Kamar',
-                    () => Navigator.pushNamed(context, AppRoutes.dataKamar),
+                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
                   ),
                   _buildMenuItem(
                     Icons.calendar_month_rounded,
                     'Kalender',
-                    () => Navigator.pushNamed(context, AppRoutes.kalender),
+                        () => Navigator.pushNamed(context, AppRoutes.kalender),
                   ),
                   _buildMenuItem(
                     Icons.person_rounded,
                     'Penghuni',
-                    () => Navigator.pushNamed(context, AppRoutes.dataPenghuni),
+                        () => Navigator.pushNamed(context, AppRoutes.dataPenghuni),
                   ),
                   _buildMenuItem(
                     Icons.history,
                     'Riwayat Pembayaran',
-                    () => Navigator.pushNamed(context, AppRoutes.dataPembayaran),
+                        () =>
+                        Navigator.pushNamed(context, AppRoutes.dataPembayaran),
                   ),
                   _buildMenuItem(
                     Icons.handyman_rounded,
                     'Maintenance',
-                    () => Navigator.pushNamed(context, AppRoutes.maintenance),
+                        () => Navigator.pushNamed(context, AppRoutes.maintenance),
                   ),
                 ],
               ),
@@ -383,8 +563,10 @@ class WavePainter extends CustomPainter {
 
     var path = Path();
     path.moveTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.1, size.width * 0.5, size.height * 0.5);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.9, size.width, size.height * 0.1);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.1,
+        size.width * 0.5, size.height * 0.5);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.9, size.width, size.height * 0.1);
 
     canvas.drawPath(path, paint);
   }
