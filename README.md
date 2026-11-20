@@ -1,17 +1,71 @@
-# belajar_dart
+# KOSTARA
 
-A new Flutter project.
+Aplikasi pengelolaan kos berbasis Flutter untuk Owner dan Tenant.
 
-## Getting Started
+## Arsitektur
 
-This project is a starting point for a Flutter application.
+```text
+lib/
+  config/       konfigurasi aplikasi dan Supabase
+  data/         repository, service, dan model API
+  domain/       model bisnis
+  routing/      route dan router
+  ui/           layar, widget, dan view model per fitur
+  utils/        formatter dan validator
+supabase/
+  migrations/   schema database PostgreSQL/Supabase
+```
 
-A few resources to get you started if this is your first Flutter project:
+## Menjalankan aplikasi
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+1. Install dependency:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+   ```bash
+   flutter pub get
+   ```
+
+2. Buat file `.env` dari contoh:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   Isi `SUPABASE_URL` dan `SUPABASE_PUBLISHABLE_KEY` dari Supabase Dashboard
+   (Project Settings -> API). File `.env` tidak di-commit.
+
+3. Terapkan schema database:
+
+   Buka Supabase Dashboard -> SQL Editor, lalu jalankan isi
+   `supabase/migrations/20261110000000_kostara_initial_schema.sql`.
+
+4. Jalankan aplikasi:
+
+   ```bash
+   flutter run
+   ```
+
+   Atau gunakan environment spesifik:
+
+   ```bash
+   flutter run -t lib/main_development.dart
+   flutter run -t lib/main_staging.dart
+   ```
+
+## Supabase
+
+Panduan lengkap database, RLS, auth trigger, dan storage ada di
+[`supabase/README.md`](supabase/README.md).
+
+## Pengujian
+
+```bash
+flutter analyze
+flutter test
+```
+
+## Keamanan
+
+- Hanya gunakan **publishable/anon key** di aplikasi Flutter.
+- Jangan pernah memasukkan `service_role` key, `secret key`, atau password
+  database ke dalam repository.
+- RLS wajib aktif untuk semua tabel yang diakses dari client.
