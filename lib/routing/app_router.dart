@@ -59,6 +59,12 @@ class AppRouter {
 
     AppRoutes.kalender: (context) => const KalenderPage(),
 
+    AppRoutes.landing: (context) => const LandingScreen(),
+    AppRoutes.login: (context) => const LoginScreen(),
+
+    // ---------- Penghuni ----------
+    AppRoutes.dashboard: (context) => const DashboardPage(),
+    AppRoutes.kalender: (context) => const KalenderScreen(),
     AppRoutes.tenantKeluhan: (context) => _shell(
       AjukanKeluhanScreen(
         onBack: () => Navigator.of(context).maybePop(),
@@ -161,5 +167,20 @@ class AppRouter {
 
     AppRoutes.pengaturan: (context) =>
     const PengaturanPage(),
+  };
+}
+    // ---------- Admin ----------
+    AppRoutes.adminDashboard: (context) => const DashboardAdminScreen(),
+    AppRoutes.dataKamar: (context) => const DataKamarPage(),
+    AppRoutes.dataPembayaran: (context) => const DataPembayaranPage(),
+    AppRoutes.dataPenghuni: (context) => const data_penghuni(),
+    AppRoutes.formPenghuni: (context) => const FormPenghuniScreen(),
+    AppRoutes.verifPembayaran: (context) => const verif_pembayaran(),
+
+    // ---------- Profil admin yang sudah ada ----------
+    AppRoutes.maintenance: (context) => const MaintenancePage(),
+    AppRoutes.profil: (context) => const ProfilPage(),
+    AppRoutes.ubahProfil: (context) => const UbahProfilPage(),
+    AppRoutes.pengaturan: (context) => const PengaturanPage(),
   };
 }

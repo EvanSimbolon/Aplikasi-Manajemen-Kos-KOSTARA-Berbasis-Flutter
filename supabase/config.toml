@@ -1,0 +1,11 @@
+# Konfigurasi Supabase CLI untuk proyek KOSTARA.
+# Dipakai oleh `supabase functions deploy` / `supabase db push`.
+project_id = "cbvhufmufcredviwguko"
+
+[functions.tambah-penghuni]
+# Dipanggil dari aplikasi sebelum pengguna punya sesi login,
+# jadi verifikasi JWT harus dimatikan.
+verify_jwt = false
+
+[functions.masuk-penghuni]
+verify_jwt = false
