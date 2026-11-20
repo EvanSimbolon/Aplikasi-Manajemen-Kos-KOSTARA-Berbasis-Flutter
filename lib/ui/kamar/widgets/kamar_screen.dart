@@ -24,6 +24,7 @@ class _DataKamarPageState extends State<DataKamarPage> {
 
     _viewModel.addListener(_onViewModelChanged);
     _viewModel.loadKamar();
+    _viewModel.load();
   }
 
   void _onViewModelChanged() {
@@ -242,6 +243,7 @@ class _DataKamarPageState extends State<DataKamarPage> {
                             const EdgeInsets.symmetric(
                               horizontal: 12,
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius:
@@ -305,6 +307,7 @@ class _DataKamarPageState extends State<DataKamarPage> {
                             const EdgeInsets.symmetric(
                               horizontal: 14,
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFB22C),
                               borderRadius:
@@ -583,6 +586,114 @@ class _DataKamarPageState extends State<DataKamarPage> {
                                   BorderRadius.circular(
                                     9,
                                   ),
+            // DAFTAR KAMAR
+            Expanded(
+              child: kamarDitampilkan.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Kamar tidak ditemukan',
+                        style: TextStyle(color: Color(0xFF753924)),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      itemCount: kamarDitampilkan.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 9),
+                      itemBuilder: (context, index) {
+                        final item = kamarDitampilkan[index];
+                        final bool isTersedia = item.tersedia;
+
+                        return Container(
+                          height: 66,
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFDF8),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: const Color(0xFFE5DECD)),
+                          ),
+                          child: Row(
+                            children: [
+                              // FOTO KAMAR DI SEBELAH KIRI
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(9),
+                                child: Image.asset(
+                                  item.gambar,
+                                  width: 66,
+                                  height: 54,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 66,
+                                      height: 54,
+                                      color: const Color(0xFFF3E7CF),
+                                      child: const Icon(
+                                        Icons.bed,
+                                        color: Color(0xFFB57514),
+                                        size: 27,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+
+                              const SizedBox(width: 7),
+
+                              // INFORMASI KAMAR
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      item.nomor,
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF261914),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 2),
+
+                                    Text(
+                                      'Tipe : ${item.tipe} - ${item.harga}',
+                                      style: const TextStyle(
+                                        fontSize: 6.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFFB57514),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 3),
+
+                                    // STATUS KAMAR
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isTersedia
+                                            ? const Color(0xFFA5E8BE)
+                                            : const Color(0xFFEC5E53),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        isTersedia ? 'Tersedia' : 'Terisi',
+                                        style: TextStyle(
+                                          fontSize: 5.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: isTersedia
+                                              ? const Color(0xFF1B6533)
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 child: const Icon(
                                   Icons
@@ -599,6 +710,12 @@ class _DataKamarPageState extends State<DataKamarPage> {
                     },
                   ),
                 ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),

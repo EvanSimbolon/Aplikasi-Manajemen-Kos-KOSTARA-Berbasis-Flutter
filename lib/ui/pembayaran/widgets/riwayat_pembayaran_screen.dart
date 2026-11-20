@@ -23,6 +23,7 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
   void initState() {
     super.initState();
     _viewModel.addListener(_onViewModelChanged);
+    _viewModel.load();
   }
 
   void _onViewModelChanged() {
@@ -105,7 +106,8 @@ class _RiwayatPembayaranScreenState extends State<RiwayatPembayaranScreen> {
         Expanded(
           child: data.isEmpty
               ? const Center(
-                  child: Text('Tidak ada data', style: TextStyle(fontSize: 12)))
+                  child: Text('Tidak ada data', style: TextStyle(fontSize: 12)),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: data.length,
@@ -138,15 +140,22 @@ class RiwayatCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(p.bulan,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.bold)),
+              Text(
+                p.bulan,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(p.nominal,
-                  style: const TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: profilPict)),
+              Text(
+                p.nominal,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: profilPict,
+                ),
+              ),
               const SizedBox(height: 10),
               Text(p.tanggal, style: const TextStyle(fontSize: 8)),
             ],
@@ -160,9 +169,13 @@ class RiwayatCard extends StatelessWidget {
                 color: berhasil ? successGreen : pendingYellow,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(p.status,
-                  style: const TextStyle(
-                      fontSize: 9, fontWeight: FontWeight.bold)),
+              child: Text(
+                p.status,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],

@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:belajar_dart/data/services/image_picker_service.dart';
 import 'package:belajar_dart/ui/core/themes/app_colors.dart';
@@ -9,8 +10,11 @@ import 'package:belajar_dart/ui/profil/view_models/profil_view_model.dart';
 class UbahProfilScreen extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback onSaved;
-  const UbahProfilScreen(
-      {super.key, required this.onBack, required this.onSaved});
+  const UbahProfilScreen({
+    super.key,
+    required this.onBack,
+    required this.onSaved,
+  });
 
   @override
   State<UbahProfilScreen> createState() => _UbahProfilScreenState();
@@ -31,6 +35,18 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
     namaCtrl = TextEditingController(text: profil.nama);
     emailCtrl = TextEditingController(text: profil.email);
     telpCtrl = TextEditingController(text: profil.telp);
+    _muatProfil();
+  }
+
+  Future<void> _muatProfil() async {
+    await _viewModel.load();
+    if (!mounted) return;
+
+    setState(() {
+      namaCtrl.text = _viewModel.profil.nama;
+      emailCtrl.text = _viewModel.profil.email;
+      telpCtrl.text = _viewModel.profil.telp;
+    });
   }
 
   Future<void> pilihFoto() async {
@@ -38,20 +54,26 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
     if (picked != null) setState(() => foto = picked);
   }
 
-  void simpan() {
+  Future<void> simpan() async {
     if (namaCtrl.text.trim().isEmpty ||
         !emailCtrl.text.contains('@') ||
         telpCtrl.text.trim().isEmpty) {
       showSnack(context, 'Nama, email (valid), dan telepon wajib diisi');
       return;
     }
-    _viewModel.simpan(
+
+    final berhasil = await _viewModel.simpan(
       nama: namaCtrl.text,
       email: emailCtrl.text,
       telp: telpCtrl.text,
     );
-    // TODO: kirim perubahan ke server
-    widget.onSaved();
+
+    if (!mounted) return;
+    if (berhasil) {
+      widget.onSaved();
+    } else {
+      showSnack(context, _viewModel.errorMessage ?? 'Gagal menyimpan profil');
+    }
   }
 
   @override
@@ -62,8 +84,12 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
     super.dispose();
   }
 
-  Widget field(String label, TextEditingController c,
-      {TextInputType? type, bool readOnly = false}) {
+  Widget field(
+    String label,
+    TextEditingController c, {
+    TextInputType? type,
+    bool readOnly = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -89,48 +115,68 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
       child: Column(
         children: [
           PageHeader('Ubah Profil', onBack: widget.onBack),
-          SectionCard(children: [
-            Center(
-              child: GestureDetector(
-                onTap: pilihFoto,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: profilPict,
-                      backgroundImage: foto != null ? FileImage(foto!) : null,
-                      child: foto == null
-                          ? const Icon(Icons.person,
-                              color: Colors.white, size: 48)
-                          : null,
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: const BoxDecoration(
-                            color: Colors.black, shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt,
-                            color: Colors.white, size: 14),
+          SectionCard(
+            children: [
+              Center(
+                child: GestureDetector(
+                  onTap: pilihFoto,
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: profilPict,
+                        backgroundImage: foto != null ? FileImage(foto!) : null,
+                        child: foto == null
+                            ? const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 48,
+                              )
+                            : null,
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Center(
-              child: Text('Ketuk untuk ganti foto',
-                  style: TextStyle(fontSize: 10)),
-            ),
-            const SizedBox(height: 16),
-            field('Nama Lengkap', namaCtrl),
-            field('Email', emailCtrl, type: TextInputType.emailAddress),
-            field('No. Telepon', telpCtrl, type: TextInputType.phone),
-            field('Nomor Kamar', TextEditingController(text: _viewModel.profil.kamar),
-                readOnly: true),
-          ]),
+              const SizedBox(height: 6),
+              const Center(
+                child: Text(
+                  'Ketuk untuk ganti foto',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ),
+              const SizedBox(height: 16),
+              field('Nama Lengkap', namaCtrl),
+              field(
+                'Email',
+                emailCtrl,
+                type: TextInputType.emailAddress,
+                readOnly: true,
+              ),
+              field('No. Telepon', telpCtrl, type: TextInputType.phone),
+              field(
+                'Nomor Kamar',
+                TextEditingController(text: _viewModel.profil.kamar),
+                readOnly: true,
+              ),
+            ],
+          ),
           ActionButtons(
             submitLabel: 'Simpan',
             onCancel: widget.onBack,
