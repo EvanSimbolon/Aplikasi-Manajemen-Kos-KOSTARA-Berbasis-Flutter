@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:belajar_dart/ui/core/ui/common_widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ---------- HALAMAN: AJUKAN KELUHAN ----------
 class AjukanKeluhanScreen extends StatefulWidget {
@@ -27,6 +28,53 @@ class _AjukanKeluhanScreenState extends State<AjukanKeluhanScreen> {
   Future<void> pilihFoto() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) setState(() => foto = File(picked.path));
+  }
+  bool loading = false;
+
+  Future<void> kirimKeluhan() async {
+    if (kategori == null || deskripsiCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kategori dan deskripsi wajib diisi')),
+      );
+      return;
+    }
+
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kamu belum login')),
+      );
+      return;
+    }
+
+    setState(() => loading = true);
+    try {
+      await client.from('laporan_kerusakan').insert({
+        'pelapor_id': user.id,
+        'judul': kategori,
+        'deskripsi': deskripsiCtrl.text.trim(),
+        'status': 'menunggu',
+        // 'fasilitas_kamar_id': ...  (lihat catatan di bawah)
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keluhan berhasil dikirim')),
+      );
+      setState(() {
+        kategori = null;
+        deskripsiCtrl.clear();
+        foto = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengirim: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
@@ -87,9 +135,7 @@ class _AjukanKeluhanScreenState extends State<AjukanKeluhanScreen> {
               deskripsiCtrl.clear();
               foto = null;
             }),
-            onSubmit: () {
-              // TODO: kirim ke server
-            },
+            onSubmit: loading ? () {} : kirimKeluhan,
           ),
         ],
       ),
