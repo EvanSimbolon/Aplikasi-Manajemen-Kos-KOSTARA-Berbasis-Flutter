@@ -1,5 +1,7 @@
 class Kamar {
   const Kamar({
+    this.id,
+    this.kosId,
     required this.nomor,
     required this.tipe,
     required this.harga,
@@ -7,6 +9,8 @@ class Kamar {
     required this.gambar,
   });
 
+  final String? id;
+  final String? kosId;
   final String nomor;
   final String tipe;
   final String harga;
