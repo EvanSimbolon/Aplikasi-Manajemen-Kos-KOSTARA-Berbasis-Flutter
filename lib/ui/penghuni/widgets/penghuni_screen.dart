@@ -29,6 +29,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
     super.initState();
     _viewModel.addListener(_onViewModelChanged);
     _viewModel.muat();
+    _viewModel.load();
   }
 
   void _onViewModelChanged() {
@@ -85,6 +86,21 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
               itemBuilder: (context, index) =>
                   _buildTenantCard(filteredTenants[index]),
             ),
+                    child: Text(
+                      'Tidak ada data penghuni',
+                      style: GoogleFonts.inter(color: Colors.black54),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    itemCount: filteredTenants.length,
+                    itemBuilder: (context, index) {
+                      return _buildTenantCard(filteredTenants[index]);
+                    },
+                  ),
           ),
         ],
       ),
@@ -99,6 +115,9 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(
+            bottom: 16,
+          ), // Ruang untuk pencarian melayang
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -108,9 +127,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(32),
-            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
           ),
           padding: EdgeInsets.only(
             top: statusBarHeight + 10,
@@ -149,10 +166,7 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFFFFF7E6),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFDEC9A4),
-                width: 1.2,
-              ),
+              border: Border.all(color: const Color(0xFFDEC9A4), width: 1.2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.08),
@@ -172,6 +186,20 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
                     color: const Color(0xFF9E8E78), fontSize: 14),
                 prefixIcon: const Icon(Icons.search_rounded,
                     color: Colors.black87, size: 24),
+                fontSize: 14,
+                color: const Color(0xFF222222),
+              ),
+              decoration: InputDecoration(
+                hintText: 'Cari Nama / Nomor Kamar',
+                hintStyle: GoogleFonts.inter(
+                  color: const Color(0xFF9E8E78),
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Colors.black87,
+                  size: 24,
+                ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -197,6 +225,10 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
               child: Container(
                 padding:
                 const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? const Color(0xFF854836)
@@ -204,6 +236,8 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                       color: const Color(0xFF854836).withOpacity(0.5)),
+                    color: const Color(0xFF854836).withOpacity(0.5),
+                  ),
                 ),
                 child: Text(
                   filterText,

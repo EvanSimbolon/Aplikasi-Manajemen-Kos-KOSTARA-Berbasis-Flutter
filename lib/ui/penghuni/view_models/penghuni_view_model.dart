@@ -14,8 +14,16 @@ class PenghuniViewModel extends ChangeNotifier {
   bool _loading = true;
   String? _error;
 
+  }) : _repository = repository,
+       _items = repository.getDemoDaftarPenghuni();
+
+  final PenghuniRepository _repository;
+
+  List<Penghuni> _items;
   String _filter = 'Aktif';
   String _query = '';
+  bool _isLoading = false;
+  String? _errorMessage;
 
   bool get loading => _loading;
   String? get error => _error;
@@ -45,6 +53,36 @@ class PenghuniViewModel extends ChangeNotifier {
     }
     _loading = false;
     notifyListeners();
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+
+  List<Penghuni> get daftarPenghuni {
+    final keyword = _query.toLowerCase().trim();
+    return _items.where((penghuni) {
+      final matchesFilter = penghuni.status == _filter;
+      final matchesSearch =
+          penghuni.nama.toLowerCase().contains(keyword) ||
+          penghuni.roomDetails.toLowerCase().contains(keyword);
+      return matchesFilter && matchesSearch;
+    }).toList();
+  }
+
+  Future<void> load() async {
+    if (_isLoading) return;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _items = await _repository.getDaftarPenghuni();
+    } catch (error) {
+      _errorMessage = 'Gagal memuat data penghuni.';
+      debugPrint('PenghuniViewModel.load: $error');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   void setFilter(String value) {

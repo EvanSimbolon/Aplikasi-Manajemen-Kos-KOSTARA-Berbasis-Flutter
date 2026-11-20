@@ -1,3 +1,4 @@
+
 enum Environment { development, staging, production }
 
 class AppConfig {
@@ -18,5 +19,13 @@ class AppConfig {
     }
   }
 
-  static bool get isProduction => environment == Environment.production;
+  // Supabase Configuration
+  static const String supabaseUrl =
+      'https://cbvhufmufcredviwguko.supabase.co';
+
+  static const String supabasePublishableKey =
+      'sb_publishable_PcNyzyod-QXvavBeHbsLpA_9hevDLkw';
+
+  static bool get isProduction =>
+      environment == Environment.production;
 }
