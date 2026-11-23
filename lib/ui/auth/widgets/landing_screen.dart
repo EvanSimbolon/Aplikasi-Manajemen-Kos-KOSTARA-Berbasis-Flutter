@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:belajar_dart/data/repositories/auth_repository.dart';
+import 'package:belajar_dart/data/services/notification_service.dart';
 import 'package:belajar_dart/data/services/supabase_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
@@ -30,12 +33,26 @@ class _LandingScreenState extends State<LandingScreen> {
       final role = await const AuthRepository().currentRole();
       if (!mounted || role == null) return;
 
+      final userId = SupabaseService.currentUser?.id;
+      if (userId != null) {
+        unawaited(_mulaiNotifikasi(userId));
+      }
+
       Navigator.of(context).pushNamedAndRemoveUntil(
         role == 'pemilik' ? AppRoutes.adminDashboard : AppRoutes.dashboard,
         (route) => false,
       );
     } catch (_) {
       // Biarkan pengguna tetap di halaman masuk jika sesi tidak valid.
+    }
+  }
+
+  Future<void> _mulaiNotifikasi(String userId) async {
+    try {
+      await NotificationService().init();
+      NotificationService().listenToNotifikasi(userId);
+    } catch (_) {
+      // Notifikasi opsional; jangan ganggu alur masuk.
     }
   }
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,12 +9,10 @@ class DashboardAdminScreen extends StatefulWidget {
   const DashboardAdminScreen({super.key});
 
   @override
-  State<DashboardAdminScreen> createState() =>
-      _DashboardAdminScreenState();
+  State<DashboardAdminScreen> createState() => _DashboardAdminScreenState();
 }
 
-class _DashboardAdminScreenState
-    extends State<DashboardAdminScreen> {
+class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
   int _selectedIndex = 0;
 
   final supabase = Supabase.instance.client;
@@ -170,62 +167,36 @@ class _DashboardAdminScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF7D4),
-
       body: SafeArea(
-        child: Column(
-          children: [
-            // =========================
-            // HEADER
-            // =========================
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                28,
-                24,
-                30,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF753924),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(35),
-                  bottomRight: Radius.circular(35),
-                ),
-              ),
-              child: const Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
-                children: [
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 100.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Admin
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
                   Text(
                     'HALO ADMIN',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF333333),
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  SizedBox(height: 2),
                   Text(
-                    'Kelola Kostara dengan mudah',
+                    'Selamat datang kembali !',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: Color(0xFF757575),
                       fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
-            ),
-
-            // =========================
-            // ISI DASHBOARD
-            // =========================
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
               if (pesanError != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -248,75 +219,18 @@ class _DashboardAdminScreenState
                 ),
                 child: Row(
                   children: [
-                    // =========================
-                    // TOTAL PENGHUNI
-                    // =========================
-                    Container(
-                      width: double.infinity,
-                      padding:
-                      const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius:
-                        BorderRadius.circular(20),
-                        border: Border.all(
-                          color:
-                          const Color(0xFFE5DECD),
-                        ),
-                      ),
-                      child: Row(
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 58,
-                            height: 58,
-                            decoration:
-                            BoxDecoration(
-                              color:
-                              const Color(
-                                0xFFF3E7CF,
-                              ),
-                              borderRadius:
-                              BorderRadius
-                                  .circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.people_alt_rounded,
-                              color:
-                              Color(0xFFB57514),
-                              size: 30,
+                          const Text(
+                            'Total Penghuni',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-
-                          const SizedBox(width: 16),
-
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                              children: [
-                                Text(
-                                  'Total Penghuni',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color:
-                                    Colors.black54,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '24 Orang',
-                                  style: TextStyle(
-                                    fontSize: 25,
-                                    fontWeight:
-                                    FontWeight.bold,
-                                    color:
-                                    Color(
-                                      0xFF753924,
-                                    ),
-                                  ),
-                                ),
-                              ],
                           const SizedBox(height: 4),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -362,23 +276,10 @@ class _DashboardAdminScreenState
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
+                          )
                         ],
                       ),
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // =========================
-                    // RINGKASAN BULAN INI
-                    // =========================
-                    const Text(
-                      'Ringkasan Bulan Ini',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color:
-                        Color(0xFF753924),
                     const SizedBox(width: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(20),
@@ -404,196 +305,23 @@ class _DashboardAdminScreenState
                         },
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
 
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child:
-                          _buildSummaryCard(
-                            icon: Icons
-                                .payments_rounded,
-                            title: 'Pembayaran',
-                            value: '18',
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        Expanded(
-                          child:
-                          _buildSummaryCard(
-                            icon: Icons
-                                .meeting_room_rounded,
-                            title: 'Kamar Terisi',
-                            value: '18',
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // =========================
-                    // MENU CEPAT
-                    // =========================
+              // Card Ringkasan Bulan ini
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     const Text(
-                      'Menu Cepat',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color:
-                        Color(0xFF753924),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics:
-                      const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.35,
-                      children: [
-                        // =========================
-                        // KAMAR TERSEDIA
-                        // =========================
-                        _buildMenuItem(
-                          Icons
-                              .meeting_room_rounded,
-                          'Kamar Tersedia',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.dataKamar,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // KAMAR TERISI
-                        // =========================
-                        _buildMenuItem(
-                          Icons.home_rounded,
-                          'Kamar Terisi',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.dataKamar,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // BELUM DIBAYAR
-                        // =========================
-                        _buildMenuItem(
-                          Icons
-                              .account_balance_wallet_rounded,
-                          'Belum Dibayar',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes
-                                  .dataPembayaran,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // KAMAR
-                        // =========================
-                        _buildMenuItem(
-                          Icons
-                              .meeting_room_outlined,
-                          'Kamar',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.dataKamar,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // KALENDER
-                        // =========================
-                        _buildMenuItem(
-                          Icons
-                              .calendar_month_rounded,
-                          'Kalender',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.kalender,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // PENGHUNI
-                        // =========================
-                        _buildMenuItem(
-                          Icons.people_alt_rounded,
-                          'Penghuni',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes
-                                  .dataPenghuni,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // RIWAYAT PEMBAYARAN
-                        // =========================
-                        _buildMenuItem(
-                          Icons.history_rounded,
-                          'Riwayat Pembayaran',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes
-                                  .dataPembayaran,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // MAINTENANCE
-                        // =========================
-                        _buildMenuItem(
-                          Icons.build_rounded,
-                          'Maintenance',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes.maintenance,
-                            );
-                          },
-                        ),
-
-                        // =========================
-                        // FASILITAS KAMAR
-                        // =========================
-                        _buildMenuItem(
-                          Icons
-                              .home_repair_service_outlined,
-                          'Fasilitas Kamar',
-                              () {
-                            Navigator.pushNamed(
-                              context,
-                              AppRoutes
-                                  .dataFasilitasKamar,
-                            );
-                          },
-                        ),
-                      ],
                       'Ringkasan bulan ini',
                       style: TextStyle(
                           fontWeight: FontWeight.w900,
@@ -626,70 +354,9 @@ class _DashboardAdminScreenState
                       size: const Size(double.infinity, 25),
                       painter: WavePainter(),
                     ),
-
-                    const SizedBox(height: 20),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-
-      // =========================
-      // BOTTOM NAVIGATION
-      // =========================
-      bottomNavigationBar:
-      BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type:
-        BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor:
-        const Color(0xFF753924),
-        unselectedItemColor:
-        Colors.grey,
-
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-
-          if (index == 1) {
-            Navigator.pushNamed(
-              context,
-              AppRoutes.dataKamar,
-            );
-          }
-
-          if (index == 2) {
-            Navigator.pushNamed(
-              context,
-              AppRoutes.dataPembayaran,
-            );
-          }
-
-          if (index == 3) {
-            Navigator.pushNamed(
-              context,
-              AppRoutes.maintenance,
-            );
-          }
-
-          if (index == 4) {
-            Navigator.pushNamed(
-              context,
-              AppRoutes.profil,
-            );
-          }
-        },
-
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(
-              Icons.home_rounded,
-            ),
-            label: 'Beranda',
               const SizedBox(height: 20),
 
               // Judul Menu Cepat
@@ -758,151 +425,126 @@ class _DashboardAdminScreenState
               ),
             ],
           ),
-
-          BottomNavigationBarItem(
-            icon: Icon(
-              Icons.meeting_room_rounded,
-            ),
-            label: 'Kamar',
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(
-              Icons.payments_rounded,
-            ),
-            label: 'Pembayaran',
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(
-              Icons.build_rounded,
-            ),
-            label: 'Maintenance',
-          ),
-
-          BottomNavigationBarItem(
-            icon: Icon(
-              Icons.person_rounded,
-            ),
-            label: 'Profil',
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================
-  // SUMMARY CARD
-  // =========================
-  Widget _buildSummaryCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-        BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFE5DECD),
         ),
       ),
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color: const Color(0xFFB57514),
-            size: 28,
-          ),
 
-          const SizedBox(height: 10),
-
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
+      // Floating Bottom Navigation Bar
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryDark,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-
-          const SizedBox(height: 3),
-
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF753924),
-            ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(0, Icons.home_rounded, 'Beranda'),
+            _buildNavItem(1, Icons.domain_add_rounded, 'Kamar'),
+            _buildNavItem(2, Icons.credit_card_rounded, 'Pembayaran'),
+            _buildNavItem(3, Icons.handyman_rounded, 'Maintenance'),
+            _buildNavItem(4, Icons.person_rounded, 'Profil'),
+          ],
+        ),
       ),
     );
   }
 
-  // =========================
-  // MENU ITEM
-  // =========================
-  Widget _buildMenuItem(
-      IconData icon,
-      String title,
-      VoidCallback onTap,
-      ) {
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    bool isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _selectedIndex = index;
+        });
+        switch (index) {
+          case 1:
+            await Navigator.pushNamed(context, AppRoutes.dataKamar);
+            break;
+          case 2:
+            await Navigator.pushNamed(context, AppRoutes.dataPembayaran);
+            break;
+          case 3:
+            await Navigator.pushNamed(context, AppRoutes.maintenance);
+            break;
+          case 4:
+            await Navigator.pushNamed(context, AppRoutes.profil);
+            break;
+        }
+        if (mounted) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryOrange : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius:
-      BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius:
-          BorderRadius.circular(18),
+          color: const Color(0xFFF7EEDD),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(0xFFE5DECD),
+            color: const Color(0xFFD3C3AD),
+            width: 1.2,
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
-          mainAxisAlignment:
-          MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 45,
-              height: 45,
-              decoration: BoxDecoration(
-                color:
-                const Color(0xFFF3E7CF),
-                borderRadius:
-                BorderRadius.circular(13),
-              ),
-              child: Icon(
-                icon,
-                color:
-                const Color(0xFFB57514),
-                size: 24,
-              ),
+            Icon(
+              icon,
+              color: const Color(0xFF6B4226),
+              size: 38,
             ),
-
-            const SizedBox(height: 10),
-
+            const SizedBox(height: 6),
             Text(
               title,
-              maxLines: 2,
-              overflow:
-              TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight:
-                FontWeight.bold,
-                color:
-                Color(0xFF261914),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4A3427),
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

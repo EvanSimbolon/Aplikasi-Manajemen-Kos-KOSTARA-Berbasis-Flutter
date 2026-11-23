@@ -10,7 +10,6 @@ class Pembayaran {
   final String? catatan;
 
   const Pembayaran({
-    this.id,
     required this.id,
     this.tagihanId = '',
     required this.nama,
@@ -22,11 +21,6 @@ class Pembayaran {
     this.catatan,
   });
 
-  final String? id;
-  final String nama;
-  final String kamar;
-  final String nominal;
-  final String status;
   String get nominalFormatted {
     final angka = double.tryParse(nominal)?.toInt() ?? 0;
     final ribuan = angka.toString().replaceAllMapped(

@@ -101,13 +101,14 @@ class UndanganService {
   }) async {
     try {
       final res = await _client.functions.invoke(
-        'buat_undangan',
+        'tambah-penghuni',
         body: {
           'nama': nama,
           'telepon': telepon,
           'email': email,
           'nomor_kamar': kamar.nomorKamar,
           'kamar_id': kamar.id,
+          'kos_id': kamar.kosId,
           'tanggal_mulai': _formatTanggal(tanggalMulai),
           'aktif': aktif,
         },
@@ -121,11 +122,16 @@ class UndanganService {
       }
 
       final hasil = Map<String, dynamic>.from(data);
-      if (hasil['token'] == null || hasil['token'].toString().isEmpty) {
+      final token = hasil['token'] ?? hasil['password_sementara'];
+      if (token == null || token.toString().isEmpty) {
         throw const UndanganException(
           'Undangan tersimpan tetapi token tidak diterima. Cek log Edge Function.',
         );
       }
+      hasil['token'] = token;
+      hasil['nama'] ??= nama;
+      hasil['email'] ??= email;
+      hasil['nomor_kamar'] ??= kamar.nomorKamar;
       return HasilUndangan.fromMap(hasil);
     } on FunctionException catch (e) {
       throw UndanganException(_pesanError(e));

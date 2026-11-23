@@ -39,17 +39,37 @@ class AuthService {
   Future<AuthResult> loginPenghuni({
     required String nomorTelepon,
     required String token,
-  }) {
-    final email = emailUntukNomorTelepon(nomorTelepon);
+  }) async {
+    final identifier = nomorTelepon.trim();
+    final email = identifier.contains('@')
+        ? identifier.toLowerCase()
+        : emailUntukNomorTelepon(identifier);
     if (email == null) {
       throw const AuthFailure('Nomor HP tidak valid.');
     }
 
-    return _login(
-      email: email,
-      password: token,
-      invalidCredentialsMessage: 'No. HP atau token salah.',
-    );
+    final tokenBersih = token.trim();
+    final kataSandi = <String>[
+      tokenBersih,
+      if (tokenBersih.isNotEmpty) 'Kt-${tokenBersih.toUpperCase()}-1a',
+    ];
+
+    AuthFailure? lastFailure;
+    for (final sandi in kataSandi.toSet()) {
+      try {
+        return await _login(
+          email: email,
+          password: sandi,
+          invalidCredentialsMessage: 'Email/No. HP atau token salah.',
+        );
+      } on AuthFailure catch (error) {
+        lastFailure = error;
+        if (!error.message.toLowerCase().contains('salah')) rethrow;
+      }
+    }
+
+    throw lastFailure ??
+        const AuthFailure('Email/No. HP atau token salah.');
   }
 
   Future<AuthResult> _login({
@@ -88,11 +108,21 @@ class AuthService {
         .eq('pengguna_id', userId)
         .eq('status', 'aktif');
 
-    return rows
+    final peran = rows
         .map((row) => row['peran'] as String?)
         .whereType<String>()
         .where((peran) => peran.isNotEmpty)
         .toList();
+    if (peran.isNotEmpty) return peran;
+
+    final sewa = await SupabaseService.client
+        .from('penyewaan')
+        .select('id')
+        .eq('penghuni_id', userId)
+        .inFilter('status', ['aktif', 'menunggu_mulai'])
+        .limit(1);
+
+    return sewa.isEmpty ? peran : ['penghuni'];
   }
 
   Future<String?> currentRole() async {

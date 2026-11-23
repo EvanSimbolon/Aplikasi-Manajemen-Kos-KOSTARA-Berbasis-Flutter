@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -10,6 +13,8 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
   FlutterLocalNotificationsPlugin();
+
+  StreamSubscription<List<Map<String, dynamic>>>? _subscription;
 
   Future<void> init() async {
     // 1. Inisialisasi timezone lokal (WIB)
@@ -31,7 +36,8 @@ class NotificationService {
 
   // Mendengarkan data notifikasi dari Supabase
   void listenToNotifikasi(String userId) {
-    Supabase.instance.client
+    _subscription?.cancel();
+    _subscription = Supabase.instance.client
         .from('notifikasi')
         .stream(primaryKey: ['id'])
         .eq('penerima_id', userId)
@@ -84,6 +90,8 @@ class NotificationService {
           await _notificationsPlugin.cancel(id: req.id);
         }
       }
+    }, onError: (error) {
+      debugPrint('NotificationService.listenToNotifikasi: $error');
     });
   }
 

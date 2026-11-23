@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:belajar_dart/data/repositories/auth_repository.dart';
 import 'package:belajar_dart/data/services/auth_service.dart';
+import 'package:belajar_dart/data/services/notification_service.dart';
+import 'package:belajar_dart/data/services/supabase_service.dart';
+import 'package:belajar_dart/data/services/undangan_service.dart';
 
 class LoginViewModel extends ChangeNotifier {
   LoginViewModel({AuthRepository repository = const AuthRepository()})
@@ -25,14 +30,27 @@ class LoginViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.login(
-        identifier: identifier,
-        token: token,
-        isAdmin: isAdmin,
-      );
+      if (isAdmin) {
+        await _repository.login(
+          identifier: identifier,
+          token: token,
+          isAdmin: true,
+        );
+      } else {
+        await _loginPenghuni(identifier: identifier, token: token);
+      }
+
+      final userId = SupabaseService.currentUser?.id;
+      if (userId != null) {
+        unawaited(_mulaiNotifikasi(userId));
+      }
+
       return true;
     } on AuthFailure catch (error) {
       _errorMessage = error.message;
+      return false;
+    } on UndanganException catch (error) {
+      _errorMessage = error.pesan;
       return false;
     } catch (error) {
       _errorMessage = 'Tidak dapat terhubung ke server. Periksa koneksi Anda.';
@@ -41,6 +59,44 @@ class LoginViewModel extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _mulaiNotifikasi(String userId) async {
+    try {
+      await NotificationService().init();
+      NotificationService().listenToNotifikasi(userId);
+    } catch (error) {
+      debugPrint('Notifikasi tidak diaktifkan: $error');
+    }
+  }
+
+  Future<void> _loginPenghuni({
+    required String identifier,
+    required String token,
+  }) async {
+    try {
+      await UndanganService().masukDenganToken(
+        identifier: identifier,
+        token: token,
+      );
+
+      final role = await _repository.currentRole();
+      if (role == 'penghuni') return;
+
+      await _repository.logout();
+      throw const AuthFailure(
+        'Akun ini belum terdaftar sebagai penghuni kos.',
+      );
+    } on UndanganException catch (error) {
+      final fungsiBelumAda = error.pesan.toLowerCase().contains('not found');
+      if (!fungsiBelumAda) rethrow;
+
+      await _repository.login(
+        identifier: identifier,
+        token: token,
+        isAdmin: false,
+      );
     }
   }
 }

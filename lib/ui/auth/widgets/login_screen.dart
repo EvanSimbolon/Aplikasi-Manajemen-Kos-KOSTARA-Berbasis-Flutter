@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:belajar_dart/data/services/undangan_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/auth/view_models/login_view_model.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
@@ -33,15 +32,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _viewModel.removeListener(_onViewModelChanged);
     _viewModel.dispose();
-  final _service = UndanganService();
-  final _identifierController = TextEditingController();
-  final _tokenController = TextEditingController();
-
-  bool _memproses = false;
-  String? _error;
-
-  @override
-  void dispose() {
     _identifierController.dispose();
     _tokenController.dispose();
     super.dispose();
@@ -67,84 +57,16 @@ class _LoginScreenState extends State<LoginScreen> {
       const SnackBar(
         content: Text('Halaman pendaftaran akun admin belum tersedia.'),
       ),
-    // Login admin belum memakai Supabase Auth — admin hanya membuka dashboard
-    // dan penulisan data tetap lewat Edge Function.
-    if (widget.isAdmin) {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.adminDashboard, (route) => false);
-      return;
-    }
-
-    final identifier = _identifierController.text.trim();
-    final token = _tokenController.text.trim();
-
-    if (identifier.isEmpty) {
-      setState(() => _error = 'Email / No. HP wajib diisi');
-      return;
-    }
-    if (token.isEmpty) {
-      setState(() => _error = 'Token wajib diisi');
-      return;
-    }
-
-    setState(() {
-      _memproses = true;
-      _error = null;
-    });
-
-    try {
-      // Verifikasi token ke server lalu buat sesi Supabase Auth.
-      await _service.masukDenganToken(identifier: identifier, token: token);
-      if (!mounted) return;
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.dashboard, (route) => false);
-    } on UndanganException catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.pesan);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = 'Gagal masuk: $e');
-    } finally {
-      if (mounted) setState(() => _memproses = false);
-    }
-  }
-
-  InputDecoration _dekorasi(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(fontSize: 11, color: Colors.grey),
-      filled: true,
-      fillColor: AppTheme.inputColor,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-    );
-  }
-
-  Widget _bungkus(Widget child) {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: child,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.isAdmin;
-    final identifierLabel = isAdmin ? 'Email' : 'No. HP';
+    final identifierLabel = isAdmin ? 'Email' : 'Email / No. HP';
     final identifierHint = isAdmin
         ? 'Masukkan email'
-        : 'Masukkan nomor HP terdaftar';
+        : 'Masukkan email atau nomor HP terdaftar';
     final tokenLabel = isAdmin ? 'Kata Sandi' : 'Token';
     final tokenHint = isAdmin
         ? 'Masukkan kata sandi'
@@ -186,9 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   controller: _identifierController,
-                  keyboardType: isAdmin
-                      ? TextInputType.emailAddress
-                      : TextInputType.phone,
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
                   decoration: InputDecoration(
@@ -261,39 +181,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontSize: 11,
                     color: Color(0xFFD32F2F),
                   ),
-              const Text(
-                'Email / No. HP',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              _bungkus(
-                TextField(
-                  controller: _identifierController,
-                  enabled: !_memproses,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: _dekorasi('Masukkan email atau nomor HP'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Token',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              _bungkus(
-                TextField(
-                  controller: _tokenController,
-                  enabled: !_memproses,
-                  textCapitalization: TextCapitalization.characters,
-                  autocorrect: false,
-                  decoration: _dekorasi('Masukkan token dari admin'),
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: TextStyle(fontSize: 12, color: Colors.red.shade700),
                 ),
               ],
               const SizedBox(height: 28),
@@ -306,15 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
-                  onPressed: _memproses ? null : _masuk,
-                  child: _memproses
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTheme.primaryDark,
-                          ),
                         )
                       : const Text(
                           'Masuk',

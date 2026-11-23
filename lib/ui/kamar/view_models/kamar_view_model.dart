@@ -7,13 +7,9 @@ class KamarViewModel extends ChangeNotifier {
   KamarViewModel({
     KamarService? service,
   }) : _service = service ?? KamarService();
-  KamarViewModel({KamarRepository repository = const KamarRepository()})
-    : _repository = repository,
-      _items = repository.getDemoKamar();
 
   final KamarService _service;
 
-  List<Kamar> _items;
   String _query = '';
   bool _isLoading = false;
   String? _errorMessage;
@@ -21,8 +17,6 @@ class KamarViewModel extends ChangeNotifier {
   List<SupabaseKamarModel> _daftarKamar = [];
 
   String get query => _query;
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
 
   bool get isLoading => _isLoading;
 
@@ -63,25 +57,6 @@ class KamarViewModel extends ChangeNotifier {
     } finally {
       _isLoading = false;
 
-    return _items.where((kamar) {
-      return kamar.nomor.toLowerCase().contains(keyword);
-    }).toList();
-  }
-
-  Future<void> load() async {
-    if (_isLoading) return;
-
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      _items = await _repository.getDaftarKamar();
-    } catch (error) {
-      _errorMessage = 'Gagal memuat data kamar.';
-      debugPrint('KamarViewModel.load: $error');
-    } finally {
-      _isLoading = false;
       notifyListeners();
     }
   }
