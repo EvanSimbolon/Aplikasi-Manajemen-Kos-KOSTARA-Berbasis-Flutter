@@ -50,12 +50,44 @@ class _AjukanKeluhanScreenState extends State<AjukanKeluhanScreen> {
 
     setState(() => loading = true);
     try {
+      String? fotoUrl; // Variabel penampung link foto
+
+      // 1. PROSES UPLOAD FOTO KE SUPABASE STORAGE (JIKA ADA FOTO)
+      if (foto != null) {
+        // Ambil ekstensi file (misal: jpg, png)
+        final fileExt = foto!.path.split('.').last;
+        // Buat nama file unik pakai ID user & waktu saat ini agar tidak bentrok
+        final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+        final filePath = 'keluhan/$fileName'; // Folder & nama file di storage
+
+        // Upload ke bucket (ganti 'keluhan' sesuai nama bucket di Supabase)
+        await client.storage.from('keluhan').upload(
+          filePath,
+          foto!,
+        );
+
+        // 2. AMBIL PUBLIC URL DARI STORAGE
+        fotoUrl = client.storage
+            .from('keluhan')
+            .getPublicUrl(filePath);
+      }
+
+      final dataFasilitas = await client
+          .from('fasilitas_kamar')
+          .select('id')
+          .limit(1)
+          .single();
+
+      final idFasilitasKamar = dataFasilitas['id'];
+
+      // 3. SIMPAN DATA & LINK FOTO KE TABEL DATABASE
       await client.from('laporan_kerusakan').insert({
         'pelapor_id': user.id,
+        'fasilitas_kamar_id': idFasilitasKamar,
         'judul': kategori,
         'deskripsi': deskripsiCtrl.text.trim(),
-        'status': 'menunggu',
-        // 'fasilitas_kamar_id': ...  (lihat catatan di bawah)
+        'status': 'dilaporkan',
+        'foto': fotoUrl, // Ganti sesuai nama kolom link foto di tabelmu (null jika tanpa foto)
       });
 
       if (!mounted) return;
