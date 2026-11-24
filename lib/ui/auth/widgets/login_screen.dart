@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:belajar_dart/data/services/auth_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/auth/view_models/login_view_model.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
@@ -58,6 +59,109 @@ class _LoginScreenState extends State<LoginScreen> {
         content: Text('Halaman pendaftaran akun admin belum tersedia.'),
       ),
     );
+  }
+
+  String _pesanRamah(Object error) {
+    final teks = error.toString();
+    final pesan = teks.replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+    if (pesan.isEmpty) return 'Terjadi kesalahan. Silakan coba lagi.';
+    return pesan[0].toUpperCase() + pesan.substring(1);
+  }
+
+  Future<void> _lupaSandi() async {
+    final email = TextEditingController(
+      text: _identifierController.text.trim(),
+    );
+    var memuat = false;
+    String? pesanError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Lupa Kata Sandi'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Masukkan email admin. Tautan untuk membuat kata sandi baru '
+                'akan dikirim ke email tersebut.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: email,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(hintText: 'Email admin'),
+              ),
+              if (pesanError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  pesanError!,
+                  style: const TextStyle(
+                    color: Color(0xFFB3261E),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: memuat ? null : () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: memuat
+                  ? null
+                  : () async {
+                      if (email.text.trim().isEmpty) {
+                        setDialogState(
+                          () => pesanError = 'Email admin wajib diisi',
+                        );
+                        return;
+                      }
+
+                      setDialogState(() {
+                        memuat = true;
+                        pesanError = null;
+                      });
+                      try {
+                        await const AuthService().kirimEmailResetKataSandi(
+                          email.text.trim(),
+                        );
+                        if (!mounted || !ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Tautan reset dikirim. Periksa kotak masuk email.',
+                            ),
+                          ),
+                        );
+                      } catch (error) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          memuat = false;
+                          pesanError = _pesanRamah(error);
+                        });
+                      }
+                    },
+              child: memuat
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Kirim'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    email.dispose();
   }
 
   @override
@@ -173,6 +277,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+              if (isAdmin) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _viewModel.isLoading ? null : _lupaSandi,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.primaryDark,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 32),
+                    ),
+                    child: const Text(
+                      'Lupa kata sandi?',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ),
+              ],
               if (_viewModel.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Text(

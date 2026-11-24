@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:belajar_dart/data/services/supabase_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
+import 'package:belajar_dart/utils/formatters.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
   static const Color _background = Color(0xFFFFF7D4);
   static const Color _primaryText = Color(0xFF4C3D3D);
   static const Color _mutedText = Color(0xFF8A7C6B);
@@ -17,7 +25,7 @@ class DashboardPage extends StatelessWidget {
 
   static const TextStyle _headingStyle = TextStyle(
     color: _primaryText,
-    fontSize: 32,
+    fontSize: 30,
     fontFamily: 'Inter',
     fontWeight: FontWeight.w700,
   );
@@ -38,7 +46,7 @@ class DashboardPage extends StatelessWidget {
 
   static const TextStyle _cardTextStyle = TextStyle(
     color: _primaryText,
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Inter',
     fontWeight: FontWeight.w700,
   );
@@ -49,6 +57,214 @@ class DashboardPage extends StatelessWidget {
     fontFamily: 'Inter',
     fontWeight: FontWeight.w500,
   );
+
+  String _namaPenghuni = 'Penghuni';
+  String _nominalTagihan = 'Rp 0';
+  String _jatuhTempoText = 'Tidak ada tagihan aktif';
+  String _nomorKamar = '-';
+  String _fasilitasText = '-';
+  String? _fotoKamarUrl;
+  String _statusSewa = 'Aktif';
+
+  String _jadwalBayarDate = '-';
+  String _jadwalBayarTitle = 'Belum ada jatuh tempo';
+  String _jadwalMaintDate = '-';
+  String _jadwalMaintTitle = 'Belum ada jadwal maintenance';
+
+  String _aktivitasTitle = 'Belum ada laporan keluhan';
+  String _aktivitasDate = '-';
+
+  @override
+  void initState() {
+    super.initState();
+    _muatDataDashboard();
+  }
+
+  Future<void> _muatDataDashboard() async {
+    if (!SupabaseService.isAvailable || !SupabaseService.isAuthenticated) {
+      return;
+    }
+
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Nama penghuni
+      final pengguna = await client
+          .from('pengguna')
+          .select('nama_lengkap')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final nama = (pengguna?['nama_lengkap']?.toString() ?? '').trim();
+
+      // 2. Penyewaan aktif + kamar (beserta kos_id & foto_url)
+      Map<String, dynamic>? penyewaan;
+      try {
+        penyewaan = await client
+            .from('penyewaan')
+            .select(
+              'id, status, tanggal_mulai, harga_sewa_disepakati, '
+              'kamar!inner ( id, kos_id, nomor_kamar, foto_url, '
+              'fasilitas_kamar ( jenis_fasilitas ( nama_fasilitas ) ) )',
+            )
+            .eq('penghuni_id', user.id)
+            .inFilter('status', ['aktif', 'menunggu_mulai'])
+            .order('tanggal_mulai', ascending: false)
+            .limit(1)
+            .maybeSingle();
+      } catch (_) {
+        // Fallback jika kolom foto_url belum ada
+        penyewaan = await client
+            .from('penyewaan')
+            .select(
+              'id, status, tanggal_mulai, harga_sewa_disepakati, '
+              'kamar!inner ( id, kos_id, nomor_kamar, '
+              'fasilitas_kamar ( jenis_fasilitas ( nama_fasilitas ) ) )',
+            )
+            .eq('penghuni_id', user.id)
+            .inFilter('status', ['aktif', 'menunggu_mulai'])
+            .order('tanggal_mulai', ascending: false)
+            .limit(1)
+            .maybeSingle();
+      }
+
+      String nomorKamar = '-';
+      String fasilitasText = 'Belum ada fasilitas terdaftar';
+      String? fotoKamarUrl;
+      String statusSewa = 'Aktif';
+      String nominalTagihan = 'Rp 0';
+      String jatuhTempoText = 'Tidak ada tagihan aktif';
+      String jadwalBayarDate = '-';
+      String jadwalBayarTitle = 'Belum ada jatuh tempo';
+      String? kosId;
+
+      if (penyewaan != null) {
+        final penyewaanId = penyewaan['id']?.toString();
+        statusSewa = penyewaan['status'] == 'menunggu_mulai'
+            ? 'Menunggu'
+            : 'Aktif';
+        final kamar = penyewaan['kamar'] as Map<String, dynamic>?;
+        nomorKamar = kamar?['nomor_kamar']?.toString() ?? '-';
+        fotoKamarUrl = kamar?['foto_url']?.toString();
+        kosId = kamar?['kos_id']?.toString();
+
+        final fkList = kamar?['fasilitas_kamar'] as List<dynamic>? ?? const [];
+        final namaFasilitas = fkList
+            .map((e) => (e as Map?)?['jenis_fasilitas']?['nama_fasilitas'])
+            .where((n) => n != null && n.toString().trim().isNotEmpty)
+            .map((n) => n.toString())
+            .toList();
+        if (namaFasilitas.isNotEmpty) {
+          fasilitasText = namaFasilitas.join(' · ');
+        }
+
+        // 3. Tagihan belum dibayar milik penyewaan ini
+        if (penyewaanId != null) {
+          final tagihan = await client
+              .from('tagihan')
+              .select('id, tanggal_jatuh_tempo, jumlah_tagihan, status')
+              .eq('penyewaan_id', penyewaanId)
+              .inFilter('status', ['belum_bayar', 'terlambat'])
+              .order('tanggal_jatuh_tempo', ascending: true)
+              .limit(1)
+              .maybeSingle();
+
+          if (tagihan != null) {
+            final jumlah = Formatters.toNumber(tagihan['jumlah_tagihan']);
+            final jt = Formatters.parseDate(tagihan['tanggal_jatuh_tempo']);
+            nominalTagihan = Formatters.rupiah(jumlah);
+            jatuhTempoText = jt == null
+                ? 'Jatuh Tempo : -'
+                : 'Jatuh Tempo : ${Formatters.tanggalPanjang(jt)}';
+            jadwalBayarDate = jt == null ? '-' : Formatters.tanggalPanjang(jt);
+            jadwalBayarTitle = 'Jatuh Tempo Pembayaran';
+          } else {
+            final hargaSewa = Formatters.toNumber(
+              penyewaan['harga_sewa_disepakati'],
+            );
+            final mulai = Formatters.parseDate(penyewaan['tanggal_mulai']);
+            nominalTagihan = Formatters.rupiah(hargaSewa);
+            jatuhTempoText = mulai == null
+                ? 'Status : Lunas / Belum ada tagihan'
+                : 'Mulai Sewa : ${Formatters.tanggalPanjang(mulai)}';
+            jadwalBayarDate =
+                mulai == null ? '-' : Formatters.tanggalPanjang(mulai);
+            jadwalBayarTitle = 'Awal Sewa Kamar $nomorKamar';
+          }
+        }
+      }
+
+      // 4. Maintenance terdekat untuk kos_id terkait
+      String jadwalMaintDate = '-';
+      String jadwalMaintTitle = 'Belum ada jadwal maintenance';
+      try {
+        var maintQuery = client
+            .from('maintenance')
+            .select(
+              'tanggal_perawatan, jenis_perawatan, kamar!inner(nomor_kamar, kos_id)',
+            );
+        if (kosId != null) {
+          maintQuery = maintQuery.eq('kamar.kos_id', kosId);
+        }
+        final maint = await maintQuery
+            .order('tanggal_perawatan', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (maint != null) {
+          final tgl = Formatters.parseDate(maint['tanggal_perawatan']);
+          final km = (maint['kamar'] as Map?)?['nomor_kamar']?.toString();
+          final jenis = maint['jenis_perawatan']?.toString() ?? 'Maintenance';
+          jadwalMaintDate = tgl == null ? '-' : Formatters.tanggalPanjang(tgl);
+          jadwalMaintTitle = km != null ? '$jenis (Kamar $km)' : jenis;
+        }
+      } catch (e) {
+        debugPrint('Dashboard maintenance fetch: $e');
+      }
+
+      // 5. Aktivitas terbaru (keluhan terbaru penghuni)
+      String aktivitasTitle = 'Belum ada laporan keluhan';
+      String aktivitasDate = '-';
+      try {
+        final keluhan = await client
+            .from('laporan_kerusakan')
+            .select('judul, dilaporkan_pada, status')
+            .eq('pelapor_id', user.id)
+            .order('dilaporkan_pada', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        if (keluhan != null) {
+          final tgl = Formatters.parseDate(keluhan['dilaporkan_pada']);
+          aktivitasTitle =
+              'Keluhan: ${keluhan['judul'] ?? '-'} (${keluhan['status'] ?? '-'})';
+          aktivitasDate = tgl == null ? '-' : Formatters.tanggalPanjang(tgl);
+        }
+      } catch (e) {
+        debugPrint('Dashboard keluhan fetch: $e');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _namaPenghuni = nama.isNotEmpty ? nama.split(' ').first : 'Penghuni';
+        _nominalTagihan = nominalTagihan;
+        _jatuhTempoText = jatuhTempoText;
+        _nomorKamar = nomorKamar;
+        _fasilitasText = fasilitasText;
+        _fotoKamarUrl = fotoKamarUrl;
+        _statusSewa = statusSewa;
+        _jadwalBayarDate = jadwalBayarDate;
+        _jadwalBayarTitle = jadwalBayarTitle;
+        _jadwalMaintDate = jadwalMaintDate;
+        _jadwalMaintTitle = jadwalMaintTitle;
+        _aktivitasTitle = aktivitasTitle;
+        _aktivitasDate = aktivitasDate;
+      });
+    } catch (e) {
+      debugPrint('DashboardPage._muatDataDashboard: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,10 +280,16 @@ class DashboardPage extends StatelessWidget {
             decoration: const BoxDecoration(color: _background),
             child: Stack(
               children: [
-                const Positioned(
+                Positioned(
                   left: 28,
                   top: 43,
-                  child: Text('HALO Penghuni', style: _headingStyle),
+                  right: 80,
+                  child: Text(
+                    'HALO $_namaPenghuni',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _headingStyle,
+                  ),
                 ),
                 const Positioned(
                   left: 28,
@@ -77,16 +299,20 @@ class DashboardPage extends StatelessWidget {
                     style: _subheadingStyle,
                   ),
                 ),
-                const Positioned(
+                Positioned(
                   left: 361,
                   top: 49,
-                  child: SizedBox(
-                    width: 31,
-                    height: 31,
-                    child: Icon(
-                      Icons.notifications,
-                      size: 28,
-                      color: _primaryText,
+                  child: GestureDetector(
+                    onTap: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.kalender),
+                    child: const SizedBox(
+                      width: 31,
+                      height: 31,
+                      child: Icon(
+                        Icons.notifications,
+                        size: 28,
+                        color: _primaryText,
+                      ),
                     ),
                   ),
                 ),
@@ -97,12 +323,12 @@ class DashboardPage extends StatelessWidget {
                   child: Text('Kamar Saya', style: _sectionTitleStyle),
                 ),
                 _buildRoomCard(),
-                const Positioned(
+                Positioned(
                   left: 45,
                   top: 528,
                   child: Text(
-                    'Kamar A01',
-                    style: TextStyle(
+                    'Kamar $_nomorKamar',
+                    style: const TextStyle(
                       color: Color(0xFF382017),
                       fontSize: 13,
                       fontFamily: 'Inter',
@@ -110,12 +336,15 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Positioned(
+                Positioned(
                   left: 45,
                   top: 550,
+                  right: 100,
                   child: Text(
-                    'Wi-Fi · AC · Kamar mandi dalam',
-                    style: TextStyle(
+                    _fasilitasText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: Color(0xFF927B6B),
                       fontSize: 11,
                       fontFamily: 'Inter',
@@ -135,9 +364,9 @@ class DashboardPage extends StatelessWidget {
                       color: _activeBadgeBackground,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Aktif',
-                      style: TextStyle(
+                    child: Text(
+                      _statusSewa,
+                      style: const TextStyle(
                         color: _activeBadgeText,
                         fontSize: 10,
                         fontFamily: 'Inter',
@@ -155,15 +384,15 @@ class DashboardPage extends StatelessWidget {
                   left: 30,
                   top: 606,
                   icon: Icons.notifications_active,
-                  date: '15 April 2026',
-                  title: 'Jatuh Tempo Pembayaran',
+                  date: _jadwalBayarDate,
+                  title: _jadwalBayarTitle,
                 ),
                 _buildScheduleCard(
                   left: 27,
                   top: 669,
-                  icon: Icons.ac_unit,
-                  date: '21 April 2026',
-                  title: 'Jadwal Cuci AC',
+                  icon: Icons.build_circle_outlined,
+                  date: _jadwalMaintDate,
+                  title: _jadwalMaintTitle,
                 ),
                 const Positioned(
                   left: 32,
@@ -206,12 +435,12 @@ class DashboardPage extends StatelessWidget {
               style: _whiteSmallStyle,
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Rp 1.000.000',
+            Text(
+              _nominalTagihan,
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 34,
                 height: 1.05,
@@ -220,17 +449,20 @@ class DashboardPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            const Text(
-              'Jatuh Tempo : 15 April 2026',
+            Text(
+              _jatuhTempoText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: _whiteSmallStyle,
             ),
             const Spacer(),
             GestureDetector(
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.tenantBuktiPembayaran,
-              ),
+              onTap: () async {
+                await Navigator.of(context).pushNamed(
+                  AppRoutes.tenantBuktiPembayaran,
+                );
+                if (mounted) _muatDataDashboard();
+              },
               child: Container(
                 width: 180,
                 height: 48,
@@ -267,11 +499,17 @@ class DashboardPage extends StatelessWidget {
         height: 176,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: Image.asset(
-            'assets/kamar_1_2.jpg',
-            fit: BoxFit.cover,
-            errorBuilder: _buildRoomImageFallback,
-          ),
+          child: _fotoKamarUrl != null && _fotoKamarUrl!.isNotEmpty
+              ? Image.network(
+                  _fotoKamarUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: _buildRoomImageFallback,
+                )
+              : Image.asset(
+                  'assets/kamar_1_2.jpg',
+                  fit: BoxFit.cover,
+                  errorBuilder: _buildRoomImageFallback,
+                ),
         ),
       ),
     );
@@ -310,14 +548,26 @@ class DashboardPage extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon, size: 24, color: _primaryText),
-            const SizedBox(width: 6),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(date, style: _cardTextStyle),
-                Text(title, style: _cardTextStyle),
-              ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _cardTextStyle,
+                  ),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _cardTextStyle,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -345,14 +595,26 @@ class DashboardPage extends StatelessWidget {
               size: 24,
               color: _primaryText,
             ),
-            const SizedBox(width: 6),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text('Laporan Kerusakan Lampu', style: _cardTextStyle),
-                Text('21 Maret 2026', style: _cardTextStyle),
-              ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _aktivitasTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _cardTextStyle,
+                  ),
+                  Text(
+                    _aktivitasDate,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _cardTextStyle,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -395,9 +657,12 @@ class DashboardPage extends StatelessWidget {
             _buildNavItem(
               icon: Icons.report_problem_outlined,
               label: 'Keluhan',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.tenantKeluhan,
-              ),
+              onTap: () async {
+                await Navigator.of(context).pushNamed(
+                  AppRoutes.tenantKeluhan,
+                );
+                if (mounted) _muatDataDashboard();
+              },
             ),
             _buildNavItem(
               icon: Icons.history,

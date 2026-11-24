@@ -52,32 +52,40 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFC07F00),
         foregroundColor: Colors.white,
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.formPenghuni),
+        onPressed: () async {
+          await Navigator.pushNamed(context, AppRoutes.formPenghuni);
+          if (mounted) _viewModel.load();
+        },
         child: const Icon(Icons.person_add_alt_1),
       ),
       body: Column(
         children: [
           _buildHeader(),
-          const SizedBox(height: 0),
-          _buildFilterTabs(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Expanded(
-            child: filteredTenants.isEmpty
+            child: _viewModel.isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF854836)),
+                  )
+                : filteredTenants.isEmpty
                 ? Center(
                     child: Text(
-                      'Tidak ada data penghuni',
+                      'Tidak ada data penghuni aktif',
                       style: GoogleFonts.inter(color: Colors.black54),
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
+                : RefreshIndicator(
+                    onRefresh: _viewModel.load,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      itemCount: filteredTenants.length,
+                      itemBuilder: (context, index) {
+                        return _buildTenantCard(filteredTenants[index]);
+                      },
                     ),
-                    itemCount: filteredTenants.length,
-                    itemBuilder: (context, index) {
-                      return _buildTenantCard(filteredTenants[index]);
-                    },
                   ),
           ),
         ],
@@ -183,44 +191,41 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
     );
   }
 
-  Widget _buildFilterTabs() {
-    final filters = ['Aktif', 'Tidak Aktif'];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: filters.map((filterText) {
-          final isSelected = _viewModel.filter == filterText;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: GestureDetector(
-              onTap: () => _viewModel.setFilter(filterText),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF854836)
-                      : const Color(0xFFFFF0D4),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFF854836).withOpacity(0.5),
-                  ),
-                ),
-                child: Text(
-                  filterText,
-                  style: GoogleFonts.inter(
-                    color: isSelected ? Colors.white : const Color(0xFF000000),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
+  Future<void> _konfirmasiHapusPenghuni(Penghuni tenant) async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Penghuni?'),
+        content: Text(
+          'Penghuni ${tenant.nama} akan dinonaktifkan dan langsung dihapus dari daftar & database.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB3261E),
+              foregroundColor: Colors.white,
             ),
-          );
-        }).toList(),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true) return;
+
+    final berhasil = await _viewModel.hapusPenghuni(tenant);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          berhasil
+              ? '${tenant.nama} berhasil dihapus dari daftar penghuni'
+              : 'Gagal menghapus penghuni. Pastikan migrasi database sudah dijalankan.',
+        ),
       ),
     );
   }
@@ -280,12 +285,21 @@ class _TenantDataScreenState extends State<TenantDataScreen> {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF000000),
+                    color: const Color(0xFF2E8B57),
                   ),
                 ),
               ],
             ),
           ),
+          if (tenant.penyewaanId != null)
+            IconButton(
+              tooltip: 'Nonaktifkan & Hapus',
+              onPressed: () => _konfirmasiHapusPenghuni(tenant),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: Color(0xFFB3261E),
+              ),
+            ),
         ],
       ),
     );

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:belajar_dart/data/services/auth_service.dart';
+import 'package:belajar_dart/ui/core/ui/common_widgets.dart';
+
 class PengaturanPage extends StatelessWidget {
   const PengaturanPage({super.key});
 
@@ -88,7 +91,9 @@ class PengaturanPage extends StatelessWidget {
                           subtitle: 'Atur pemberitahuan aplikasi',
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pengaturan Notifikasi')),
+                              const SnackBar(
+                                content: Text('Pengaturan Notifikasi'),
+                              ),
                             );
                           },
                         ),
@@ -100,7 +105,9 @@ class PengaturanPage extends StatelessWidget {
                           subtitle: 'Indonesia',
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Bahasa: Indonesia')),
+                              const SnackBar(
+                                content: Text('Bahasa: Indonesia'),
+                              ),
                             );
                           },
                         ),
@@ -109,12 +116,8 @@ class PengaturanPage extends StatelessWidget {
                           context,
                           icon: Icons.lock_outline,
                           title: 'Keamanan',
-                          subtitle: 'Ubah kata sandi akun',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pengaturan Keamanan')),
-                            );
-                          },
+                          subtitle: 'Ubah atau reset kata sandi akun',
+                          onTap: () => _bukaKeamanan(context),
                         ),
                         const Divider(height: 24, color: _cardBorder),
                         _buildSettingItem(
@@ -127,7 +130,8 @@ class PengaturanPage extends StatelessWidget {
                               context: context,
                               applicationName: 'BELAJAR DART',
                               applicationVersion: '1.0.0',
-                              applicationLegalese: '© 2026 Pemrograman Aplikasi Bergerak',
+                              applicationLegalese:
+                                  '© 2026 Pemrograman Aplikasi Bergerak',
                             );
                           },
                         ),
@@ -141,6 +145,249 @@ class PengaturanPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _bukaKeamanan(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.password_outlined),
+              title: const Text('Ubah Kata Sandi'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _dialogUbahSandi(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.email_outlined),
+              title: const Text('Lupa Kata Sandi'),
+              subtitle: const Text('Kirim tautan reset ke email admin'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _dialogLupaSandi(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _dialogUbahSandi(BuildContext context) async {
+    final lama = TextEditingController();
+    final baru = TextEditingController();
+    final konfirmasi = TextEditingController();
+    var memuat = false;
+    String? pesanError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _cardBackground,
+          title: const Text('Ubah Kata Sandi'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: lama,
+                obscureText: true,
+                decoration: fieldDecoration(hint: 'Kata sandi lama'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: baru,
+                obscureText: true,
+                decoration: fieldDecoration(hint: 'Kata sandi baru'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: konfirmasi,
+                obscureText: true,
+                decoration: fieldDecoration(hint: 'Konfirmasi kata sandi baru'),
+              ),
+              if (pesanError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  pesanError!,
+                  style: const TextStyle(
+                    color: Color(0xFFB3261E),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: memuat ? null : () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: memuat
+                  ? null
+                  : () async {
+                      if (baru.text.length < 6 ||
+                          baru.text != konfirmasi.text) {
+                        setDialogState(
+                          () => pesanError =
+                              'Sandi baru min. 6 karakter dan harus sama',
+                        );
+                        return;
+                      }
+                      if (lama.text.isEmpty) {
+                        setDialogState(
+                          () => pesanError = 'Kata sandi lama wajib diisi',
+                        );
+                        return;
+                      }
+
+                      setDialogState(() {
+                        memuat = true;
+                        pesanError = null;
+                      });
+                      try {
+                        await const AuthService().ubahKataSandi(
+                          kataSandiLama: lama.text,
+                          kataSandiBaru: baru.text,
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        showSnack(context, 'Kata sandi berhasil diubah');
+                      } catch (error) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          memuat = false;
+                          pesanError = _pesanRamah(error);
+                        });
+                      }
+                    },
+              child: memuat
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    lama.dispose();
+    baru.dispose();
+    konfirmasi.dispose();
+  }
+
+  Future<void> _dialogLupaSandi(BuildContext context) async {
+    final email = TextEditingController(
+      text: const AuthService().emailSaatIni ?? '',
+    );
+    var memuat = false;
+    String? pesanError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _cardBackground,
+          title: const Text('Lupa Kata Sandi'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tautan reset akan dikirim ke email admin. Buka tautan '
+                'tersebut untuk membuat kata sandi baru.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: email,
+                keyboardType: TextInputType.emailAddress,
+                decoration: fieldDecoration(hint: 'Email admin'),
+              ),
+              if (pesanError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  pesanError!,
+                  style: const TextStyle(
+                    color: Color(0xFFB3261E),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: memuat ? null : () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: memuat
+                  ? null
+                  : () async {
+                      if (email.text.trim().isEmpty) {
+                        setDialogState(
+                          () => pesanError = 'Email admin wajib diisi',
+                        );
+                        return;
+                      }
+
+                      setDialogState(() {
+                        memuat = true;
+                        pesanError = null;
+                      });
+                      try {
+                        await const AuthService().kirimEmailResetKataSandi(
+                          email.text.trim(),
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        showSnack(
+                          context,
+                          'Tautan reset dikirim. Periksa kotak masuk email.',
+                        );
+                      } catch (error) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          memuat = false;
+                          pesanError = _pesanRamah(error);
+                        });
+                      }
+                    },
+              child: memuat
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Kirim'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    email.dispose();
+  }
+
+  String _pesanRamah(Object error) {
+    final teks = error.toString();
+    final pesan = teks.replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+    final hurufAwal = pesan.isEmpty ? pesan : pesan[0].toUpperCase();
+    final rapi = pesan.isEmpty ? pesan : '$hurufAwal${pesan.substring(1)}';
+    return rapi.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : rapi;
   }
 
   Widget _buildSettingItem(
@@ -192,11 +439,7 @@ class PengaturanPage extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: _primaryText,
-            ),
+            const Icon(Icons.chevron_right, size: 20, color: _primaryText),
           ],
         ),
       ),

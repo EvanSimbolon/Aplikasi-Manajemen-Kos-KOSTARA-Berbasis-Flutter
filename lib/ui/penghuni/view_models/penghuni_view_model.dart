@@ -7,28 +7,25 @@ class PenghuniViewModel extends ChangeNotifier {
   PenghuniViewModel({
     PenghuniRepository repository = const PenghuniRepository(),
   }) : _repository = repository,
-       _items = repository.getDemoDaftarPenghuni();
+       _items = const [];
 
   final PenghuniRepository _repository;
 
   List<Penghuni> _items;
-  String _filter = 'Aktif';
   String _query = '';
   bool _isLoading = false;
   String? _errorMessage;
 
-  String get filter => _filter;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
   List<Penghuni> get daftarPenghuni {
     final keyword = _query.toLowerCase().trim();
     return _items.where((penghuni) {
-      final matchesFilter = penghuni.status == _filter;
-      final matchesSearch =
-          penghuni.nama.toLowerCase().contains(keyword) ||
+      if (penghuni.status != 'Aktif') return false;
+      if (keyword.isEmpty) return true;
+      return penghuni.nama.toLowerCase().contains(keyword) ||
           penghuni.roomDetails.toLowerCase().contains(keyword);
-      return matchesFilter && matchesSearch;
     }).toList();
   }
 
@@ -50,9 +47,19 @@ class PenghuniViewModel extends ChangeNotifier {
     }
   }
 
-  void setFilter(String value) {
-    _filter = value;
-    notifyListeners();
+  Future<bool> hapusPenghuni(Penghuni penghuni) async {
+    final sewaId = penghuni.penyewaanId;
+    if (sewaId == null || sewaId.isEmpty) return false;
+
+    try {
+      await _repository.hapusPenghuni(sewaId);
+      _items = _items.where((e) => e.penyewaanId != sewaId).toList();
+      notifyListeners();
+      return true;
+    } catch (error) {
+      debugPrint('PenghuniViewModel.hapusPenghuni: $error');
+      return false;
+    }
   }
 
   void cari(String value) {

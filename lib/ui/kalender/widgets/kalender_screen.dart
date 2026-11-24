@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:belajar_dart/data/services/auth_service.dart';
+
 class KalenderScreen extends StatefulWidget {
   const KalenderScreen({super.key});
 
@@ -104,7 +106,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
     final angka = double.tryParse(nilai?.toString() ?? '0')?.toInt() ?? 0;
     final formatted = angka.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
+      (Match m) => '${m[1]}.',
     );
     return 'Rp $formatted';
   }
@@ -112,23 +114,56 @@ class _KalenderScreenState extends State<KalenderScreen> {
   /// Mengambil agenda dari Supabase (Tagihan Jatuh Tempo, Maintenance, Acara)
   Future<List<Map<String, dynamic>>> _fetchAgendaKalender() async {
     final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    final role = user == null ? null : await const AuthService().currentRole();
+    final isTenant = role == 'penghuni';
     final List<Map<String, dynamic>> combinedAgenda = [];
 
     // 1. Ambil data jatuh tempo tagihan
     try {
-      final tagihan = await supabase
+      List<String> ownerKosIds = const [];
+      if (!isTenant && user != null) {
+        final ids = <String>{};
+        final kosRows = await supabase
+            .from('kos')
+            .select('id')
+            .eq('pemilik_id', user.id);
+        for (final r in kosRows) {
+          if (r['id'] != null) ids.add(r['id'].toString());
+        }
+        final anggotaRows = await supabase
+            .from('anggota_kos')
+            .select('kos_id')
+            .eq('pengguna_id', user.id)
+            .eq('peran', 'pemilik')
+            .eq('status', 'aktif');
+        for (final r in anggotaRows) {
+          if (r['kos_id'] != null) ids.add(r['kos_id'].toString());
+        }
+        ownerKosIds = ids.toList();
+      }
+
+      var query = supabase
           .from('tagihan')
           .select('''
             id,
             tanggal_jatuh_tempo,
             jumlah_tagihan,
             status,
-            penyewaan (
+            penyewaan!inner (
+              penghuni_id,
               pengguna ( nama_lengkap ),
-              kamar ( nomor_kamar )
+              kamar!inner ( nomor_kamar, kos_id )
             )
           ''')
           .inFilter('status', ['belum_bayar', 'terlambat']);
+      if (isTenant && user != null) {
+        query = query.eq('penyewaan.penghuni_id', user.id);
+      } else if (!isTenant && ownerKosIds.isNotEmpty) {
+        query = query.inFilter('penyewaan.kamar.kos_id', ownerKosIds);
+      }
+
+      final tagihan = await query;
 
       for (var t in tagihan) {
         if (t['tanggal_jatuh_tempo'] != null) {
@@ -140,9 +175,41 @@ class _KalenderScreenState extends State<KalenderScreen> {
 
           combinedAgenda.add({
             'tanggal': DateTime(parsed.year, parsed.month, parsed.day),
-            'judul': 'Jatuh Tempo: $nama (Kamar $kamar) - $nominalFormatted',
+            'judul': isTenant
+                ? 'Jatuh Tempo - $nominalFormatted'
+                : 'Jatuh Tempo: $nama (Kamar $kamar) - $nominalFormatted',
             'tipe': 'pembayaran',
           });
+        }
+      }
+
+      // Penghuni baru yang belum memiliki tagihan memakai tanggal mulai sewa
+      // yang diisi admin sebagai tenggat pembayaran pertama.
+      if (isTenant && user != null) {
+        final semuaTagihan = await supabase
+            .from('tagihan')
+            .select('id, penyewaan!inner ( penghuni_id )')
+            .eq('penyewaan.penghuni_id', user.id)
+            .limit(1);
+        if (semuaTagihan.isEmpty) {
+          final sewa = await supabase
+              .from('penyewaan')
+              .select('tanggal_mulai, kamar ( nomor_kamar )')
+              .eq('penghuni_id', user.id)
+              .inFilter('status', ['aktif', 'menunggu_mulai'])
+              .order('tanggal_mulai', ascending: true)
+              .limit(1)
+              .maybeSingle();
+
+          if (sewa?['tanggal_mulai'] != null) {
+            final parsed = DateTime.parse(sewa!['tanggal_mulai'].toString());
+            final kamar = sewa['kamar'] as Map<String, dynamic>?;
+            combinedAgenda.add({
+              'tanggal': DateTime(parsed.year, parsed.month, parsed.day),
+              'judul': 'Awal Sewa Kamar ${kamar?['nomor_kamar'] ?? '-'}',
+              'tipe': 'pembayaran',
+            });
+          }
         }
       }
     } catch (e) {
@@ -150,23 +217,75 @@ class _KalenderScreenState extends State<KalenderScreen> {
     }
 
     // 2. Ambil jadwal pemeliharaan (Maintenance)
+    // Tabel `maintenance` adalah data yang dibuat dari menu Maintenance.
+    var maintenanceDitemukan = false;
     try {
       final maintenance = await supabase
-          .from('jadwal_pemeliharaan')
-          .select('id, jadwal_pada, jenis_pemeliharaan, deskripsi');
+          .from('maintenance')
+          .select(
+            'id, tanggal_perawatan, jenis_perawatan, status, '
+            'kamar ( nomor_kamar )',
+          );
 
       for (var m in maintenance) {
-        if (m['jadwal_pada'] != null) {
-          final parsed = DateTime.parse(m['jadwal_pada'].toString());
+        if (m['tanggal_perawatan'] != null) {
+          final parsed = DateTime.parse(m['tanggal_perawatan'].toString());
+          final kamar = m['kamar'];
+          final nomorKamar = kamar is Map
+              ? kamar['nomor_kamar']?.toString()
+              : null;
+          final jenis = m['jenis_perawatan'] ?? 'Maintenance Fasilitas';
+          final status = m['status']?.toString();
+          final judul = [
+            jenis.toString(),
+            if (nomorKamar != null) 'Kamar $nomorKamar',
+            if (status != null && status.toLowerCase() != 'terjadwal') status,
+          ].join(' • ');
+
           combinedAgenda.add({
             'tanggal': DateTime(parsed.year, parsed.month, parsed.day),
-            'judul': m['jenis_pemeliharaan'] ?? 'Maintenance Fasilitas',
+            'judul': judul,
             'tipe': 'maintenance',
           });
+          maintenanceDitemukan = true;
         }
       }
     } catch (e) {
       debugPrint('Error fetch maintenance kalender: $e');
+    }
+
+    // Fallback untuk database yang masih memakai jadwal_pemeliharaan.
+    if (!maintenanceDitemukan) {
+      try {
+        final maintenance = await supabase
+            .from('jadwal_pemeliharaan')
+            .select(
+              'id, jadwal_pada, jenis_pemeliharaan, '
+              'fasilitas_kamar ( kamar ( nomor_kamar ) )',
+            );
+
+        for (var m in maintenance) {
+          if (m['jadwal_pada'] != null) {
+            final parsed = DateTime.parse(m['jadwal_pada'].toString());
+            final fasilitas = m['fasilitas_kamar'];
+            final kamar = fasilitas is Map ? fasilitas['kamar'] : null;
+            final nomorKamar = kamar is Map
+                ? kamar['nomor_kamar']?.toString()
+                : null;
+            final jenis = m['jenis_pemeliharaan'] ?? 'Maintenance Fasilitas';
+            combinedAgenda.add({
+              'tanggal': DateTime(parsed.year, parsed.month, parsed.day),
+              'judul': [
+                jenis.toString(),
+                if (nomorKamar != null) 'Kamar $nomorKamar',
+              ].join(' • '),
+              'tipe': 'maintenance',
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetch jadwal pemeliharaan kalender: $e');
+      }
     }
 
     // 3. Ambil acara umum kalender
@@ -191,7 +310,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
 
     // Urutkan berdasarkan tanggal terdekat
     combinedAgenda.sort(
-          (a, b) => (a['tanggal'] as DateTime).compareTo(b['tanggal'] as DateTime),
+      (a, b) => (a['tanggal'] as DateTime).compareTo(b['tanggal'] as DateTime),
     );
 
     return combinedAgenda;
@@ -265,7 +384,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
                       child: _buildEventCard(
                         agendaBulanIni,
                         isLoading:
-                        snapshot.connectionState == ConnectionState.waiting,
+                            snapshot.connectionState == ConnectionState.waiting,
                       ),
                     ),
                   ],
@@ -282,7 +401,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
     final days = _buildVisibleDays();
     final weeks = List.generate(
       6,
-          (index) => days.sublist(index * 7, index * 7 + 7),
+      (index) => days.sublist(index * 7, index * 7 + 7),
     );
 
     return Container(
@@ -301,10 +420,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
             child: IconButton(
               key: const Key('calendar-prev'),
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(
-                width: 40,
-                height: 40,
-              ),
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
               icon: const Icon(
                 Icons.chevron_left,
                 size: 30,
@@ -323,8 +439,10 @@ class _KalenderScreenState extends State<KalenderScreen> {
                 behavior: HitTestBehavior.opaque,
                 onTap: _showMonthYearPicker,
                 child: Padding(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -334,8 +452,11 @@ class _KalenderScreenState extends State<KalenderScreen> {
                         style: _monthStyle,
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_drop_down,
-                          color: Colors.black, size: 22),
+                      const Icon(
+                        Icons.arrow_drop_down,
+                        color: Colors.black,
+                        size: 22,
+                      ),
                     ],
                   ),
                 ),
@@ -349,10 +470,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
             child: IconButton(
               key: const Key('calendar-next'),
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(
-                width: 40,
-                height: 40,
-              ),
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
               icon: const Icon(
                 Icons.chevron_right,
                 size: 30,
@@ -370,11 +488,9 @@ class _KalenderScreenState extends State<KalenderScreen> {
               children: _weekdays
                   .map(
                     (day) => Expanded(
-                  child: Center(
-                    child: Text(day, style: _weekdayStyle),
-                  ),
-                ),
-              )
+                      child: Center(child: Text(day, style: _weekdayStyle)),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -384,8 +500,9 @@ class _KalenderScreenState extends State<KalenderScreen> {
             right: 17,
             top: 112,
             child: Column(
-              children:
-              weeks.map((week) => _buildWeek(week, allAgenda)).toList(),
+              children: weeks
+                  .map((week) => _buildWeek(week, allAgenda))
+                  .toList(),
             ),
           ),
           // Legenda Kiri
@@ -417,27 +534,24 @@ class _KalenderScreenState extends State<KalenderScreen> {
     final start = firstDay.subtract(Duration(days: firstDay.weekday - 1));
     return List.generate(
       42,
-          (index) => DateTime(start.year, start.month, start.day + index),
+      (index) => DateTime(start.year, start.month, start.day + index),
     );
   }
 
-  Widget _buildWeek(
-      List<DateTime> days, List<Map<String, dynamic>> allAgenda) {
+  Widget _buildWeek(List<DateTime> days, List<Map<String, dynamic>> allAgenda) {
     return SizedBox(
       height: 42,
       child: Row(
         children: days
-            .map(
-              (date) => Expanded(child: _buildDayCell(date, allAgenda)),
-        )
+            .map((date) => Expanded(child: _buildDayCell(date, allAgenda)))
             .toList(),
       ),
     );
   }
 
   Widget _buildDayCell(DateTime date, List<Map<String, dynamic>> allAgenda) {
-    final isCurrentMonth = date.month == _visibleMonth.month &&
-        date.year == _visibleMonth.year;
+    final isCurrentMonth =
+        date.month == _visibleMonth.month && date.year == _visibleMonth.year;
     final isSelected = _isSameDay(date, _selectedDate);
     final isToday = _isSameDay(date, DateTime.now());
 
@@ -446,17 +560,14 @@ class _KalenderScreenState extends State<KalenderScreen> {
         .where((item) => _isSameDay(item['tanggal'] as DateTime, date))
         .toList();
 
-    final hasPayment = isCurrentMonth &&
-        eventsOnDay.any((e) => e['tipe'] == 'pembayaran');
-    final hasMaintenance = isCurrentMonth &&
-        eventsOnDay.any((e) => e['tipe'] == 'maintenance');
+    final hasPayment =
+        isCurrentMonth && eventsOnDay.any((e) => e['tipe'] == 'pembayaran');
+    final hasMaintenance =
+        isCurrentMonth && eventsOnDay.any((e) => e['tipe'] == 'maintenance');
     final hasAcara =
         isCurrentMonth && eventsOnDay.any((e) => e['tipe'] == 'acara');
-    final showTodayDot = isToday &&
-        !isSelected &&
-        !hasPayment &&
-        !hasMaintenance &&
-        !hasAcara;
+    final showTodayDot =
+        isToday && !isSelected && !hasPayment && !hasMaintenance && !hasAcara;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -537,9 +648,9 @@ class _KalenderScreenState extends State<KalenderScreen> {
   }
 
   Widget _buildEventCard(
-      List<Map<String, dynamic>> agendaBulanIni, {
-        required bool isLoading,
-      }) {
+    List<Map<String, dynamic>> agendaBulanIni, {
+    required bool isLoading,
+  }) {
     return Container(
       width: 377,
       constraints: const BoxConstraints(minHeight: 134, maxHeight: 310),
@@ -548,44 +659,87 @@ class _KalenderScreenState extends State<KalenderScreen> {
         color: _calendarBackground,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: isLoading
-          ? const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      )
-          : agendaBulanIni.isEmpty
-          ? const Center(
-        child: Text(
-          'Tidak ada agenda di bulan ini',
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 13,
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w500,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Agenda & Notifikasi',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (!isLoading && agendaBulanIni.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${agendaBulanIni.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 12),
+            ],
           ),
-        ),
-      )
-          : ListView.separated(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        itemCount: agendaBulanIni.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final item = agendaBulanIni[index];
-          final DateTime tgl = item['tanggal'];
-          final shortMonth = _shortMonthNames[tgl.month - 1];
+          const SizedBox(height: 12),
+          Flexible(
+            child: isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  )
+                : agendaBulanIni.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Tidak ada agenda di bulan ini',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: agendaBulanIni.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final item = agendaBulanIni[index];
+                      final DateTime tgl = item['tanggal'];
+                      final shortMonth = _shortMonthNames[tgl.month - 1];
 
-          final Color rowColor = switch (item['tipe']) {
-            'pembayaran' => _red,
-            'maintenance' => _lightGreen,
-            _ => _blueEvent,
-          };
+                      final Color rowColor = switch (item['tipe']) {
+                        'pembayaran' => _red,
+                        'maintenance' => _lightGreen,
+                        _ => _blueEvent,
+                      };
 
-          return _buildEventRow(
-            date: '${tgl.day}\n$shortMonth',
-            title: item['judul'],
-            color: rowColor,
-          );
-        },
+                      return _buildEventRow(
+                        date: '${tgl.day}\n$shortMonth',
+                        title: item['judul'],
+                        color: rowColor,
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -639,10 +793,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
 
   void _changeMonth(int delta) {
     setState(() {
-      _visibleMonth = DateTime(
-        _visibleMonth.year,
-        _visibleMonth.month + delta,
-      );
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta);
     });
   }
 
@@ -706,12 +857,12 @@ class _KalenderScreenState extends State<KalenderScreen> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        childAspectRatio: 2.2,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            childAspectRatio: 2.2,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
                       itemCount: 12,
                       itemBuilder: (context, index) {
                         final monthIndex = index + 1;
@@ -752,8 +903,10 @@ class _KalenderScreenState extends State<KalenderScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Batal',
-                      style: TextStyle(color: Color(0xFF8A7C6B))),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Color(0xFF8A7C6B)),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(

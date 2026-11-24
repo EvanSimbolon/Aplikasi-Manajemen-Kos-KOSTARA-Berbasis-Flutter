@@ -14,10 +14,24 @@ class DataPembayaranPage extends StatefulWidget {
 class _DataPembayaranPageState extends State<DataPembayaranPage> {
   final TextEditingController _searchController = TextEditingController();
 
+  static const List<String> _namaBulan = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
   @override
   void initState() {
     super.initState();
-    // Memanggil fetching data saat screen pertama kali dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PembayaranViewModel>().fetchPembayaran('Semua');
     });
@@ -29,10 +43,24 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
     super.dispose();
   }
 
+  Future<void> _bukaVerifikasi(Pembayaran item) async {
+    await Navigator.pushNamed(
+      context,
+      AppRoutes.verifPembayaran,
+      arguments: item,
+    );
+    if (mounted) {
+      context.read<PembayaranViewModel>().fetchPembayaran('Semua');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<PembayaranViewModel>();
-    final filteredList = viewModel.daftarPembayaran;
+    final requestList = viewModel.requestVerifikasi;
+    final historyList = viewModel.riwayatTerverifikasi;
+    final currentYear = DateTime.now().year;
+    final years = [currentYear - 1, currentYear, currentYear + 1];
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF7D4),
@@ -63,6 +91,7 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                   Positioned(
                     top: 45,
                     left: 16,
+                    right: 16,
                     child: Row(
                       children: [
                         GestureDetector(
@@ -80,6 +109,15 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                             color: Colors.white,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => viewModel.fetchPembayaran('Semua'),
+                          child: const Icon(
+                            Icons.refresh,
+                            color: Colors.white,
+                            size: 22,
                           ),
                         ),
                       ],
@@ -105,16 +143,26 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.search, color: Color(0xFF333333), size: 22),
+                          const Icon(
+                            Icons.search,
+                            color: Color(0xFF333333),
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
                               controller: _searchController,
                               onChanged: (val) => viewModel.cari(val),
-                              style: const TextStyle(fontSize: 13, color: Colors.black),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black,
+                              ),
                               decoration: const InputDecoration(
                                 hintText: 'Cari Nama / Nomor Kamar',
-                                hintStyle: TextStyle(color: Color(0xFF888888), fontSize: 13),
+                                hintStyle: TextStyle(
+                                  color: Color(0xFF888888),
+                                  fontSize: 13,
+                                ),
                                 border: InputBorder.none,
                                 isDense: true,
                               ),
@@ -126,7 +174,11 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                                 _searchController.clear();
                                 viewModel.cari('');
                               },
-                              child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                              child: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
                             ),
                         ],
                       ),
@@ -136,57 +188,266 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // ================= TOMBOL FILTER RESPONSIP (TAB) =================
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  _buildFilterTab(context, 'Semua'),
-                  const SizedBox(width: 8),
-                  _buildFilterTab(context, 'Belum Dibayar'),
-                  const SizedBox(width: 8),
-                  _buildFilterTab(context, 'Menunggu'),
-                  const SizedBox(width: 8),
-                  _buildFilterTab(context, 'Lunas'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // ================= LIST TRANSAKSI RESPONSIP =================
+            // ================= KONTEN 2 BAGIAN =================
             Expanded(
               child: viewModel.isLoading
                   ? const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF854836),
-                ),
-              )
-                  : filteredList.isEmpty
-                  ? const Center(
-                child: Text(
-                  'Tidak ada data pembayaran',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              )
-                  : ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                itemCount: filteredList.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final item = filteredList[index];
-                  return GestureDetector(
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.verifPembayaran,
-                      arguments: item,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF854836),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () => viewModel.fetchPembayaran('Semua'),
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        children: [
+                          // ---------- BAGIAN 1: REQUEST VERIFIKASI BARU ----------
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.pending_actions_rounded,
+                                color: Color(0xFF854836),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Request Verifikasi Pembayaran',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4A3428),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: requestList.isEmpty
+                                      ? const Color(0xFFE8DFCE)
+                                      : const Color(0xFFFFB22C),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${requestList.length} Baru',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF3E2212),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          if (requestList.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFDF9),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE2D9C8),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Tidak ada request verifikasi pembayaran baru.',
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            ...requestList.map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GestureDetector(
+                                  onTap: () => _bukaVerifikasi(item),
+                                  child: _buildCardPembayaran(item),
+                                ),
+                              ),
+                            ),
+
+                          const SizedBox(height: 20),
+                          const Divider(color: Color(0xFFDEC9A4), thickness: 1.2),
+                          const SizedBox(height: 12),
+
+                          // ---------- BAGIAN 2: HISTORY TERVERIFIKASI + FILTER BULAN ----------
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.verified_rounded,
+                                color: Color(0xFF2E8B57),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Riwayat Terverifikasi',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4A3428),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${historyList.length} data',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF854836),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Menu Filter Bulan & Tahun
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Container(
+                                  height: 42,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFFDF9),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFC7B8A2),
+                                    ),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<int?>(
+                                      value: viewModel.selectedMonth,
+                                      isExpanded: true,
+                                      icon: const Icon(
+                                        Icons.calendar_month_rounded,
+                                        size: 18,
+                                        color: Color(0xFF854836),
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF4A3428),
+                                      ),
+                                      items: [
+                                        const DropdownMenuItem<int?>(
+                                          value: null,
+                                          child: Text('Semua Bulan'),
+                                        ),
+                                        ...List.generate(
+                                          12,
+                                          (i) => DropdownMenuItem<int?>(
+                                            value: i + 1,
+                                            child: Text(_namaBulan[i]),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (month) =>
+                                          viewModel.setMonthFilter(month),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  height: 42,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFFDF9),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFC7B8A2),
+                                    ),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<int>(
+                                      value: years.contains(viewModel.selectedYear)
+                                          ? viewModel.selectedYear
+                                          : currentYear,
+                                      isExpanded: true,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF4A3428),
+                                      ),
+                                      items: years
+                                          .map(
+                                            (y) => DropdownMenuItem<int>(
+                                              value: y,
+                                              child: Text('$y'),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (year) {
+                                        if (year != null) {
+                                          viewModel.setMonthFilter(
+                                            viewModel.selectedMonth,
+                                            year: year,
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          if (historyList.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFDF9),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE2D9C8),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  viewModel.selectedMonth == null
+                                      ? 'Belum ada pembayaran terverifikasi di tahun ${viewModel.selectedYear}.'
+                                      : 'Tidak ada pembayaran terverifikasi pada ${_namaBulan[viewModel.selectedMonth! - 1]} ${viewModel.selectedYear}.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            ...historyList.map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: GestureDetector(
+                                  onTap: () => _bukaVerifikasi(item),
+                                  child: _buildCardPembayaran(item),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                    child: _buildCardPembayaran(item),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -194,39 +455,6 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
     );
   }
 
-  // Widget Tab Filter yang terhubung langsung ke ViewModel
-  Widget _buildFilterTab(BuildContext context, String label) {
-    final viewModel = context.watch<PembayaranViewModel>();
-    final bool isActive = viewModel.filter == label;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => viewModel.setFilter(label),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF6B3A24) : const Color(0xFFF9EEDD),
-            borderRadius: BorderRadius.circular(8),
-            border: isActive ? null : Border.all(color: const Color(0xFFC7B8A2)),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
-              color: isActive ? Colors.white : const Color(0xFF4A3428),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Widget Card Pembayaran Kustom dengan Avatar & Badge Warna
-  // Widget Card Pembayaran Kustom dengan Avatar & Badge Warna
   Widget _buildCardPembayaran(Pembayaran item) {
     Color badgeBg;
     Color badgeText;
@@ -240,14 +468,12 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
       badgeBg = const Color(0xFFE0EC7F);
       badgeText = const Color(0xFF35300F);
     } else {
-      // Untuk status 'terverifikasi' / 'lunas'
       badgeBg = const Color(0xFF7BD768);
       badgeText = const Color(0xFF133210);
     }
 
     return Container(
-      height: 95,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFDF9),
         borderRadius: BorderRadius.circular(20),
@@ -257,7 +483,6 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
         children: [
           Row(
             children: [
-              // Avatar Bulat Cokelat Emas
               Container(
                 width: 46,
                 height: 46,
@@ -268,47 +493,52 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                 child: const Icon(Icons.person, color: Colors.white, size: 30),
               ),
               const SizedBox(width: 14),
-              // Nama, Kamar, Harga
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    item.nama,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF241810),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 80),
+                      child: Text(
+                        item.nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF241810),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.kamar,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF9E6E1A),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Kamar ${item.kamar} • ${item.tanggalFormatted}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF9E6E1A),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.nominalFormatted,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF241810),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.nominalFormatted,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF241810),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
-          // Badge Status
           Positioned(
             top: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
                 color: badgeBg,
                 borderRadius: BorderRadius.circular(6),

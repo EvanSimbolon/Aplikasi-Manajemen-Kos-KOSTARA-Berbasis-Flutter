@@ -5,6 +5,8 @@ class SupabaseKamarModel {
   final String? tipeKamar;
   final double hargaSewaBulanan;
   final String? deskripsi;
+  final String? fotoUrl;
+  final bool isTerisi;
   final DateTime? dibuatPada;
   final DateTime? diperbaruiPada;
 
@@ -15,19 +17,26 @@ class SupabaseKamarModel {
     this.tipeKamar,
     required this.hargaSewaBulanan,
     this.deskripsi,
+    this.fotoUrl,
+    this.isTerisi = false,
     this.dibuatPada,
     this.diperbaruiPada,
   });
 
-  factory SupabaseKamarModel.fromMap(Map<String, dynamic> map) {
+  factory SupabaseKamarModel.fromMap(
+    Map<String, dynamic> map, {
+    bool isTerisi = false,
+  }) {
     return SupabaseKamarModel(
       id: map['id'] as String,
       kosId: map['kos_id'] as String,
       nomorKamar: map['nomor_kamar'] as String,
       tipeKamar: map['tipe_kamar'] as String?,
       hargaSewaBulanan:
-      (map['harga_sewa_bulanan'] as num?)?.toDouble() ?? 0,
+          (map['harga_sewa_bulanan'] as num?)?.toDouble() ?? 0,
       deskripsi: map['deskripsi'] as String?,
+      fotoUrl: map['foto_url'] as String?,
+      isTerisi: isTerisi,
       dibuatPada: map['dibuat_pada'] != null
           ? DateTime.parse(map['dibuat_pada'] as String)
           : null,
@@ -45,6 +54,7 @@ class SupabaseKamarModel {
       'tipe_kamar': tipeKamar,
       'harga_sewa_bulanan': hargaSewaBulanan,
       'deskripsi': deskripsi,
+      'foto_url': fotoUrl,
       'dibuat_pada': dibuatPada?.toIso8601String(),
       'diperbarui_pada': diperbaruiPada?.toIso8601String(),
     };

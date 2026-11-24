@@ -6,6 +6,7 @@ import 'package:belajar_dart/data/repositories/auth_repository.dart';
 import 'package:belajar_dart/data/services/auth_service.dart';
 import 'package:belajar_dart/data/services/notification_service.dart';
 import 'package:belajar_dart/data/services/supabase_service.dart';
+import 'package:belajar_dart/data/services/token_session_service.dart';
 import 'package:belajar_dart/data/services/undangan_service.dart';
 
 class LoginViewModel extends ChangeNotifier {
@@ -38,6 +39,7 @@ class LoginViewModel extends ChangeNotifier {
         );
       } else {
         await _loginPenghuni(identifier: identifier, token: token);
+        await TokenSessionService().simpan(token);
       }
 
       final userId = SupabaseService.currentUser?.id;
@@ -85,9 +87,7 @@ class LoginViewModel extends ChangeNotifier {
       if (role == 'penghuni') return;
 
       await _repository.logout();
-      throw const AuthFailure(
-        'Akun ini belum terdaftar sebagai penghuni kos.',
-      );
+      throw const AuthFailure('Akun ini belum terdaftar sebagai penghuni kos.');
     } on UndanganException catch (error) {
       final fungsiBelumAda = error.pesan.toLowerCase().contains('not found');
       if (!fungsiBelumAda) rethrow;

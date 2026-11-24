@@ -7,37 +7,71 @@ class PembayaranViewModel extends ChangeNotifier {
 
   PembayaranViewModel({PembayaranRepository? repository})
       : _repository = repository ?? PembayaranRepository() {
-    // Otomatis muat data saat ViewModel pertama kali dibuat
+    final now = DateTime.now();
+    _selectedMonth = now.month;
+    _selectedYear = now.year;
     fetchPembayaran('Semua');
   }
 
   List<Pembayaran> _allPembayaran = [];
-  List<Pembayaran> _filteredPembayaran = [];
   bool _isLoading = false;
   String _filter = 'Semua';
   String _keyword = '';
+  int? _selectedMonth; // null = Semua Bulan, 1..12 = Januari..Desember
+  late int _selectedYear;
 
-  // Getter yang dibutuhkan oleh UI (pembayaran_screen.dart)
-  List<Pembayaran> get daftarPembayaran => _filteredPembayaran;
   bool get isLoading => _isLoading;
   String get filter => _filter;
   String get selectedFilter => _filter;
   String get keyword => _keyword;
+  int? get selectedMonth => _selectedMonth;
+  int get selectedYear => _selectedYear;
 
-  /// Mengambil data pembayaran dari repositori
+  bool _cocokKeyword(Pembayaran item) {
+    final q = _keyword.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return item.nama.toLowerCase().contains(q) ||
+        item.kamar.toLowerCase().contains(q);
+  }
+
+  /// Semua item yang cocok keyword (kompatibilitas)
+  List<Pembayaran> get daftarPembayaran =>
+      _allPembayaran.where(_cocokKeyword).toList();
+
+  /// Bagian 1: Request verifikasi pembayaran baru dari penghuni (menunggu_verifikasi)
+  List<Pembayaran> get requestVerifikasi => _allPembayaran
+      .where(
+        (item) =>
+            item.status.toLowerCase() == 'menunggu_verifikasi' &&
+            _cocokKeyword(item),
+      )
+      .toList();
+
+  /// Bagian 2: History pembayaran yang sudah diverifikasi owner, difilter per bulan
+  List<Pembayaran> get riwayatTerverifikasi => _allPembayaran.where((item) {
+        if (item.status.toLowerCase() != 'terverifikasi') return false;
+        if (!_cocokKeyword(item)) return false;
+
+        final dt = item.tanggalDateTime;
+        if (_selectedMonth == null) {
+          return dt == null || dt.year == _selectedYear;
+        }
+        if (dt == null) return false;
+        return dt.month == _selectedMonth && dt.year == _selectedYear;
+      }).toList();
+
+  /// Mengambil data pembayaran dari repositori (sesuai kos_id pemilik)
   Future<void> fetchPembayaran([String filterStatus = 'Semua']) async {
     _isLoading = true;
     _filter = filterStatus;
-    _allPembayaran = [];
-    _filteredPembayaran = [];
     notifyListeners();
 
     try {
-      _allPembayaran = await _repository.getDaftarPembayaran(filterStatus: filterStatus);
-      _applyFilterAndSearch();
+      _allPembayaran = await _repository.getDaftarPembayaran(
+        filterStatus: filterStatus,
+      );
     } catch (e) {
       _allPembayaran = [];
-      _filteredPembayaran = [];
       debugPrint('Error fetch pembayaran: $e');
     } finally {
       _isLoading = false;
@@ -45,29 +79,20 @@ class PembayaranViewModel extends ChangeNotifier {
     }
   }
 
-  /// Memfilter berdasarkan tab status ('Semua', 'Belum Dibayar', 'Menunggu', 'Lunas')
   void setFilter(String newFilter) {
     _filter = newFilter;
     fetchPembayaran(newFilter);
   }
 
-  /// Melakukan pencarian kata kunci (nama / nomor kamar)
-  void cari(String query) {
-    _keyword = query;
-    _applyFilterAndSearch();
+  void setMonthFilter(int? month, {int? year}) {
+    _selectedMonth = month;
+    if (year != null) _selectedYear = year;
     notifyListeners();
   }
 
-  void _applyFilterAndSearch() {
-    if (_keyword.isEmpty) {
-      _filteredPembayaran = List.from(_allPembayaran);
-    } else {
-      _filteredPembayaran = _allPembayaran.where((item) {
-        final matchNama = item.nama.toLowerCase().contains(_keyword.toLowerCase());
-        final matchKamar = item.kamar.toLowerCase().contains(_keyword.toLowerCase());
-        return matchNama || matchKamar;
-      }).toList();
-    }
+  void cari(String query) {
+    _keyword = query;
+    notifyListeners();
   }
 
   /// Verifikasi status pembayaran oleh Admin
@@ -84,7 +109,7 @@ class PembayaranViewModel extends ChangeNotifier {
         adminId: adminId,
         statusSetuju: statusSetuju,
       );
-      await fetchPembayaran(_filter);
+      await fetchPembayaran('Semua');
       return true;
     } catch (e) {
       debugPrint('Error verifikasi: $e');

@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+
 import 'package:belajar_dart/data/services/supabase_service.dart';
 import 'package:belajar_dart/domain/models/profil.dart';
 
-class ProfilRepository {
+class ProfilRepository extends ChangeNotifier {
   ProfilRepository._();
 
   static final ProfilRepository instance = ProfilRepository._();
@@ -14,6 +18,11 @@ class ProfilRepository {
   );
 
   Profil get profil => _profil;
+
+  void _setProfil(Profil profil) {
+    _profil = profil;
+    notifyListeners();
+  }
 
   Future<Profil> fetch() async {
     if (!SupabaseService.isAvailable || !SupabaseService.isAuthenticated) {
@@ -31,7 +40,7 @@ class ProfilRepository {
 
     final detail = await SupabaseService.client
         .from('profil_pengguna')
-        .select('foto_url,alamat')
+        .select('*')
         .eq('pengguna_id', user.id)
         .maybeSingle();
 
@@ -46,41 +55,89 @@ class ProfilRepository {
 
     final kamar = _asMap(penyewaan?['kamar']);
 
-    _profil = Profil(
-      id: user.id,
-      nama:
-          pengguna?['nama_lengkap'] as String? ??
-          user.userMetadata?['nama_lengkap'] as String? ??
-          '-',
-      email: pengguna?['email'] as String? ?? user.email ?? '-',
-      telp: pengguna?['nomor_telepon'] as String? ?? '-',
-      kamar: kamar?['nomor_kamar'] as String? ?? '-',
-      fotoUrl: detail?['foto_url'] as String?,
-      alamat: detail?['alamat'] as String?,
+    _setProfil(
+      Profil(
+        id: user.id,
+        nama:
+            pengguna?['nama_lengkap'] as String? ??
+            user.userMetadata?['nama_lengkap'] as String? ??
+            '-',
+        email: pengguna?['email'] as String? ?? user.email ?? '-',
+        telp: pengguna?['nomor_telepon'] as String? ?? '-',
+        kamar: kamar?['nomor_kamar'] as String? ?? '-',
+        fotoUrl: detail?['foto_url'] as String?,
+        alamat: detail?['alamat'] as String?,
+      ),
     );
 
     return _profil;
   }
 
-  Future<void> simpan(Profil profil) async {
-    _profil = profil;
-
+  Future<String> unggahFoto(File foto) async {
     if (!SupabaseService.isAvailable || !SupabaseService.isAuthenticated) {
+      throw StateError('Sesi login tidak tersedia.');
+    }
+
+    final userId = SupabaseService.currentUser?.id;
+    if (userId == null) {
+      throw StateError('Sesi login tidak tersedia.');
+    }
+
+    final namaFile = foto.path.split(RegExp(r'[\\/]')).last;
+    final ekstensi = namaFile.contains('.') ? namaFile.split('.').last : 'jpg';
+    final path = '$userId/${DateTime.now().millisecondsSinceEpoch}.$ekstensi';
+    final storage = SupabaseService.client.storage.from('foto-profil');
+
+    await storage.upload(path, foto);
+    final url = storage.getPublicUrl(path);
+
+    await _simpanDetail(userId, {'foto_url': url});
+    _setProfil(_profil.copyWith(fotoUrl: url));
+
+    return url;
+  }
+
+  Future<void> simpan(Profil profil) async {
+    if (!SupabaseService.isAvailable || !SupabaseService.isAuthenticated) {
+      _setProfil(profil);
       return;
     }
 
     final userId = profil.id ?? SupabaseService.currentUser?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      _setProfil(profil);
+      return;
+    }
+
+    final detail = <String, dynamic>{
+      if (profil.fotoUrl != null) 'foto_url': profil.fotoUrl,
+      if (profil.alamat != null) 'alamat': profil.alamat,
+    };
+    if (detail.isNotEmpty) {
+      await _simpanDetail(userId, detail);
+    }
 
     await SupabaseService.client
         .from('pengguna')
         .update({'nama_lengkap': profil.nama, 'nomor_telepon': profil.telp})
         .eq('id', userId);
 
-    await SupabaseService.client
+    _setProfil(profil);
+  }
+
+  Future<void> _simpanDetail(String userId, Map<String, dynamic> data) async {
+    final updated = await SupabaseService.client
         .from('profil_pengguna')
-        .update({'alamat': profil.alamat})
-        .eq('pengguna_id', userId);
+        .update(data)
+        .eq('pengguna_id', userId)
+        .select('pengguna_id');
+
+    if ((updated as List).isEmpty) {
+      await SupabaseService.client.from('profil_pengguna').upsert({
+        'pengguna_id': userId,
+        ...data,
+      });
+    }
   }
 
   Map<String, dynamic>? _asMap(Object? value) {

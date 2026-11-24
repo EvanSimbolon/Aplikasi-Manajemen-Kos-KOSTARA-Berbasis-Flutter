@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:belajar_dart/data/services/kamar_service.dart';
 import 'package:belajar_dart/domain/models/supabase_kamar_model.dart';
@@ -24,27 +27,38 @@ class _EditKamarPageState extends State<EditKamarPage> {
 
   final KamarService _service = KamarService();
 
+  late List<String> _tipeOptions;
   late String tipeKamar;
+  File? _fotoBaru;
   bool isSaving = false;
 
   @override
   void initState() {
     super.initState();
 
-    nomorController = TextEditingController(
-      text: widget.kamar.nomorKamar,
-    );
-
+    nomorController = TextEditingController(text: widget.kamar.nomorKamar);
     hargaController = TextEditingController(
-      text: widget.kamar.hargaSewaBulanan
-          .toStringAsFixed(0),
+      text: widget.kamar.hargaSewaBulanan.toStringAsFixed(0),
     );
-
     deskripsiController = TextEditingController(
       text: widget.kamar.deskripsi ?? '',
     );
 
-    tipeKamar = widget.kamar.tipeKamar ?? 'Standar';
+    final rawTipe = (widget.kamar.tipeKamar ?? '').trim();
+    _tipeOptions = ['Standar', 'Deluxe'];
+    if (rawTipe.isEmpty) {
+      tipeKamar = 'Standar';
+    } else {
+      final match = _tipeOptions.where(
+        (opt) => opt.toLowerCase() == rawTipe.toLowerCase(),
+      );
+      if (match.isNotEmpty) {
+        tipeKamar = match.first;
+      } else {
+        _tipeOptions = [..._tipeOptions, rawTipe];
+        tipeKamar = rawTipe;
+      }
+    }
   }
 
   @override
@@ -53,6 +67,23 @@ class _EditKamarPageState extends State<EditKamarPage> {
     hargaController.dispose();
     deskripsiController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pilihFoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (picked != null && mounted) {
+        setState(() => _fotoBaru = File(picked.path));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memilih foto: $e')),
+      );
+    }
   }
 
   Future<void> simpanPerubahan() async {
@@ -66,13 +97,16 @@ class _EditKamarPageState extends State<EditKamarPage> {
 
     try {
       final harga = double.tryParse(
-        hargaController.text
-            .replaceAll('.', '')
-            .replaceAll(',', ''),
+        hargaController.text.replaceAll('.', '').replaceAll(',', ''),
       );
 
       if (harga == null) {
         throw Exception('Harga sewa tidak valid.');
+      }
+
+      String? fotoUrl = widget.kamar.fotoUrl;
+      if (_fotoBaru != null) {
+        fotoUrl = await _service.uploadFotoKamar(_fotoBaru!, widget.kamar.kosId);
       }
 
       final kamarBaru = SupabaseKamarModel(
@@ -84,6 +118,7 @@ class _EditKamarPageState extends State<EditKamarPage> {
         deskripsi: deskripsiController.text.trim().isEmpty
             ? null
             : deskripsiController.text.trim(),
+        fotoUrl: fotoUrl,
         dibuatPada: widget.kamar.dibuatPada,
         diperbaruiPada: widget.kamar.diperbaruiPada,
       );
@@ -104,9 +139,7 @@ class _EditKamarPageState extends State<EditKamarPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Gagal memperbarui kamar: $e',
-          ),
+          content: Text('Gagal memperbarui kamar: $e'),
         ),
       );
     } finally {
@@ -118,6 +151,42 @@ class _EditKamarPageState extends State<EditKamarPage> {
     }
   }
 
+  Widget _buildPreviewFoto() {
+    if (_fotoBaru != null) {
+      return Image.file(_fotoBaru!, fit: BoxFit.cover);
+    }
+    if (widget.kamar.fotoUrl != null && widget.kamar.fotoUrl!.isNotEmpty) {
+      return Image.network(
+        widget.kamar.fotoUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildPlaceholderFoto(),
+      );
+    }
+    return _buildPlaceholderFoto();
+  }
+
+  Widget _buildPlaceholderFoto() {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_a_photo_outlined,
+          size: 36,
+          color: Color(0xFF753924),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Ketuk untuk ubah/tambah foto kamar',
+          style: TextStyle(
+            color: Color(0xFF753924),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -127,9 +196,7 @@ class _EditKamarPageState extends State<EditKamarPage> {
         foregroundColor: Colors.white,
         title: const Text(
           'Edit Kamar',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: Form(
@@ -146,18 +213,62 @@ class _EditKamarPageState extends State<EditKamarPage> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // FOTO KAMAR
+            const Text(
+              'Foto Kamar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: isSaving ? null : _pilihFoto,
+              child: Container(
+                height: 160,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDEC9A4)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildPreviewFoto(),
+                    if (_fotoBaru != null ||
+                        (widget.kamar.fotoUrl?.isNotEmpty ?? false))
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Ganti Foto',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
 
             // NOMOR KAMAR
             const Text(
               'Nomor Kamar',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: nomorController,
               decoration: InputDecoration(
@@ -169,11 +280,9 @@ class _EditKamarPageState extends State<EditKamarPage> {
                 ),
               ),
               validator: (value) {
-                if (value == null ||
-                    value.trim().isEmpty) {
+                if (value == null || value.trim().isEmpty) {
                   return 'Nomor kamar wajib diisi.';
                 }
-
                 return null;
               },
             ),
@@ -183,13 +292,9 @@ class _EditKamarPageState extends State<EditKamarPage> {
             // TIPE KAMAR
             const Text(
               'Tipe Kamar',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             DropdownButtonFormField<String>(
               initialValue: tipeKamar,
               decoration: InputDecoration(
@@ -199,21 +304,14 @@ class _EditKamarPageState extends State<EditKamarPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'Standar',
-                  child: Text('Standar'),
-                ),
-                DropdownMenuItem(
-                  value: 'Deluxe',
-                  child: Text('Deluxe'),
-                ),
-              ],
+              items: _tipeOptions
+                  .map(
+                    (tipe) => DropdownMenuItem(value: tipe, child: Text(tipe)),
+                  )
+                  .toList(),
               onChanged: (value) {
                 if (value != null) {
-                  setState(() {
-                    tipeKamar = value;
-                  });
+                  setState(() => tipeKamar = value);
                 }
               },
             ),
@@ -223,13 +321,9 @@ class _EditKamarPageState extends State<EditKamarPage> {
             // HARGA
             const Text(
               'Harga Sewa Bulanan',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: hargaController,
               keyboardType: TextInputType.number,
@@ -243,21 +337,15 @@ class _EditKamarPageState extends State<EditKamarPage> {
                 ),
               ),
               validator: (value) {
-                if (value == null ||
-                    value.trim().isEmpty) {
+                if (value == null || value.trim().isEmpty) {
                   return 'Harga sewa wajib diisi.';
                 }
-
                 final harga = double.tryParse(
-                  value
-                      .replaceAll('.', '')
-                      .replaceAll(',', ''),
+                  value.replaceAll('.', '').replaceAll(',', ''),
                 );
-
                 if (harga == null || harga < 0) {
                   return 'Masukkan harga yang valid.';
                 }
-
                 return null;
               },
             ),
@@ -267,19 +355,14 @@ class _EditKamarPageState extends State<EditKamarPage> {
             // DESKRIPSI
             const Text(
               'Deskripsi',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: deskripsiController,
               maxLines: 4,
               decoration: InputDecoration(
-                hintText:
-                'Contoh: Kamar standar dengan fasilitas dasar',
+                hintText: 'Contoh: Kamar standar dengan fasilitas dasar',
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
@@ -297,53 +380,34 @@ class _EditKamarPageState extends State<EditKamarPage> {
                   child: OutlinedButton(
                     onPressed: isSaving
                         ? null
-                        : () {
-                      Navigator.of(context).pop();
-                    },
+                        : () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                      const Color(0xFF753924),
-                      side: const BorderSide(
-                        color: Color(0xFF753924),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
+                      foregroundColor: const Color(0xFF753924),
+                      side: const BorderSide(color: Color(0xFF753924)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('Batal'),
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: ElevatedButton(
-                    onPressed:
-                    isSaving ? null : simpanPerubahan,
+                    onPressed: isSaving ? null : simpanPerubahan,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                      const Color(0xFFFFB22C),
-                      foregroundColor:
-                      const Color(0xFF5A2A06),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
+                      backgroundColor: const Color(0xFFFFB22C),
+                      foregroundColor: const Color(0xFF5A2A06),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: isSaving
                         ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text(
-                      'Simpan Perubahan',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                            'Simpan Perubahan',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                   ),
                 ),
               ],
