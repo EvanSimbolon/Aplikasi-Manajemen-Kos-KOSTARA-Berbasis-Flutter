@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:belajar_dart/config/app.dart';
 import 'package:belajar_dart/ui/kalender/widgets/kalender_screen.dart';
-import 'package:belajar_dart/ui/maintenance/maintenance_screen.dart';
-import 'package:belajar_dart/ui/profil/widgets/admin_profil_screen.dart';
 
 void main() {
   testWidgets('Landing screen renders', (WidgetTester tester) async {
@@ -16,11 +14,7 @@ void main() {
   });
 
   testWidgets('Kalender screen renders', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: KalenderScreen(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: KalenderScreen()));
 
     expect(find.byType(KalenderScreen), findsOneWidget);
   });

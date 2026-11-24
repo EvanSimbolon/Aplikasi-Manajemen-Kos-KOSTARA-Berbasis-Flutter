@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:belajar_dart/data/services/supabase_service.dart';
+import 'package:belajar_dart/data/services/token_session_service.dart';
 
 class AuthResult {
   const AuthResult({required this.user, required this.role});
@@ -68,8 +69,7 @@ class AuthService {
       }
     }
 
-    throw lastFailure ??
-        const AuthFailure('Email/No. HP atau token salah.');
+    throw lastFailure ?? const AuthFailure('Email/No. HP atau token salah.');
   }
 
   Future<AuthResult> _login({
@@ -137,9 +137,53 @@ class AuthService {
 
   Future<void> logout() async {
     await SupabaseService.auth.signOut();
+    await TokenSessionService().hapus();
   }
 
-  Future<void> ubahKataSandi(String kataSandiBaru) async {
+  String? get emailSaatIni => SupabaseService.currentUser?.email;
+
+  Future<void> ubahKataSandi({
+    required String kataSandiLama,
+    required String kataSandiBaru,
+  }) async {
+    final email = emailSaatIni;
+    if (email == null) {
+      throw const AuthFailure('Sesi login tidak ditemukan.');
+    }
+
+    try {
+      await SupabaseService.auth.signInWithPassword(
+        email: email,
+        password: kataSandiLama,
+      );
+    } on AuthException {
+      throw const AuthFailure('Kata sandi lama salah.');
+    }
+
+    await SupabaseService.auth.updateUser(
+      UserAttributes(password: kataSandiBaru),
+    );
+  }
+
+  Future<void> kirimEmailResetKataSandi(String email) async {
+    final target = email.trim().toLowerCase();
+    if (!target.contains('@')) {
+      throw const AuthFailure('Email tidak valid.');
+    }
+
+    try {
+      await SupabaseService.auth.resetPasswordForEmail(
+        target,
+        redirectTo: 'kostara://reset-password',
+      );
+    } on AuthException catch (error) {
+      throw AuthFailure(
+        _pesanAuth(error.message, 'Gagal mengirim email reset kata sandi.'),
+      );
+    }
+  }
+
+  Future<void> simpanKataSandiBaru(String kataSandiBaru) async {
     await SupabaseService.auth.updateUser(
       UserAttributes(password: kataSandiBaru),
     );

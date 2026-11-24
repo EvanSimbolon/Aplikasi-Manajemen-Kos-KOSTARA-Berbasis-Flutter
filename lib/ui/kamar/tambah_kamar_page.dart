@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:belajar_dart/data/services/kamar_service.dart';
 import 'package:belajar_dart/domain/models/supabase_kamar_model.dart';
@@ -19,13 +22,10 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
 
   final KamarService _service = KamarService();
 
+  static const List<String> _tipeOptions = ['Standar', 'Deluxe'];
   String tipeKamar = 'Standar';
+  File? _fotoDipilih;
   bool isSaving = false;
-
-  // ID kos yang sedang digunakan.
-  // Untuk sementara menggunakan kos_id yang sudah terbukti
-  // memiliki data A01-A04 di Supabase.
-  final String kosId = '57529c5c-d679-4bed-bcad-d21cd076113c';
 
   @override
   void dispose() {
@@ -33,6 +33,23 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
     hargaController.dispose();
     deskripsiController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pilihFoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (picked != null && mounted) {
+        setState(() => _fotoDipilih = File(picked.path));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memilih foto: $e')),
+      );
+    }
   }
 
   Future<void> simpanKamar() async {
@@ -53,6 +70,13 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
         throw Exception('Harga sewa tidak valid.');
       }
 
+      final kosId = await _service.getOwnerKosId();
+
+      String? fotoUrl;
+      if (_fotoDipilih != null) {
+        fotoUrl = await _service.uploadFotoKamar(_fotoDipilih!, kosId);
+      }
+
       final kamar = SupabaseKamarModel(
         id: '',
         kosId: kosId,
@@ -62,6 +86,7 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
         deskripsi: deskripsiController.text.trim().isEmpty
             ? null
             : deskripsiController.text.trim(),
+        fotoUrl: fotoUrl,
       );
 
       await _service.tambahKamar(kamar);
@@ -101,9 +126,7 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
         foregroundColor: Colors.white,
         title: const Text(
           'Tambah Kamar',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: Form(
@@ -120,18 +143,80 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // FOTO KAMAR
+            const Text(
+              'Foto Kamar',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: isSaving ? null : _pilihFoto,
+              child: Container(
+                height: 160,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDEC9A4)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _fotoDipilih != null
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(_fotoDipilih!, fit: BoxFit.cover),
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.black54,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _fotoDipilih = null),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_a_photo_outlined,
+                            size: 36,
+                            color: Color(0xFF753924),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Ketuk untuk tambah foto kamar',
+                            style: TextStyle(
+                              color: Color(0xFF753924),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
 
             // NOMOR KAMAR
             const Text(
               'Nomor Kamar',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: nomorController,
               decoration: InputDecoration(
@@ -146,7 +231,6 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
                 if (value == null || value.trim().isEmpty) {
                   return 'Nomor kamar wajib diisi.';
                 }
-
                 return null;
               },
             ),
@@ -156,13 +240,9 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
             // TIPE KAMAR
             const Text(
               'Tipe Kamar',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             DropdownButtonFormField<String>(
               initialValue: tipeKamar,
               decoration: InputDecoration(
@@ -172,21 +252,14 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'Standar',
-                  child: Text('Standar'),
-                ),
-                DropdownMenuItem(
-                  value: 'Deluxe',
-                  child: Text('Deluxe'),
-                ),
-              ],
+              items: _tipeOptions
+                  .map(
+                    (tipe) => DropdownMenuItem(value: tipe, child: Text(tipe)),
+                  )
+                  .toList(),
               onChanged: (value) {
                 if (value != null) {
-                  setState(() {
-                    tipeKamar = value;
-                  });
+                  setState(() => tipeKamar = value);
                 }
               },
             ),
@@ -196,13 +269,9 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
             // HARGA
             const Text(
               'Harga Sewa Bulanan',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: hargaController,
               keyboardType: TextInputType.number,
@@ -219,15 +288,12 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
                 if (value == null || value.trim().isEmpty) {
                   return 'Harga sewa wajib diisi.';
                 }
-
                 final harga = double.tryParse(
                   value.replaceAll('.', '').replaceAll(',', ''),
                 );
-
                 if (harga == null || harga < 0) {
                   return 'Masukkan harga yang valid.';
                 }
-
                 return null;
               },
             ),
@@ -237,13 +303,9 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
             // DESKRIPSI
             const Text(
               'Deskripsi',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
-
             const SizedBox(height: 8),
-
             TextFormField(
               controller: deskripsiController,
               maxLines: 4,
@@ -266,48 +328,34 @@ class _TambahKamarPageState extends State<TambahKamarPage> {
                   child: OutlinedButton(
                     onPressed: isSaving
                         ? null
-                        : () {
-                      Navigator.of(context).pop();
-                    },
+                        : () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF753924),
-                      side: const BorderSide(
-                        color: Color(0xFF753924),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
+                      side: const BorderSide(color: Color(0xFF753924)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('Batal'),
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: ElevatedButton(
                     onPressed: isSaving ? null : simpanKamar,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFFB22C),
                       foregroundColor: const Color(0xFF5A2A06),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: isSaving
                         ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Text(
-                      'Simpan',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                            'Simpan',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                   ),
                 ),
               ],

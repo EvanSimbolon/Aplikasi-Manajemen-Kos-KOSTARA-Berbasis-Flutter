@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:belajar_dart/data/services/kamar_service.dart';
 import 'package:belajar_dart/domain/models/supabase_kamar_model.dart';
 import 'package:belajar_dart/ui/kamar/edit_kamar_page.dart';
 import 'package:belajar_dart/ui/kamar/tambah_kamar_page.dart';
@@ -83,6 +84,17 @@ class _DataKamarPageState extends State<DataKamarPage> {
   Future<void> hapusKamar(
       SupabaseKamarModel kamar,
       ) async {
+    if (kamar.isTerisi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Maaf, kamar tidak dapat dihapus karena masih ada penghuni',
+          ),
+        ),
+      );
+      return;
+    }
+
     final konfirmasi = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -142,6 +154,12 @@ class _DataKamarPageState extends State<DataKamarPage> {
       );
 
       await _viewModel.loadKamar();
+    } on KamarMasihDihuniException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -436,26 +454,28 @@ class _DataKamarPageState extends State<DataKamarPage> {
                                     Container(
                                       width: 66,
                                       height: 54,
-                                      decoration:
-                                      BoxDecoration(
-                                        color:
-                                        const Color(
-                                          0xFFF3E7CF,
-                                        ),
-                                        borderRadius:
-                                        BorderRadius
-                                            .circular(
-                                          9,
-                                        ),
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF3E7CF),
+                                        borderRadius: BorderRadius.circular(9),
                                       ),
-                                      child: const Icon(
-                                        Icons.bed,
-                                        color:
-                                        Color(
-                                          0xFFB57514,
-                                        ),
-                                        size: 27,
-                                      ),
+                                      child: item.fotoUrl != null &&
+                                              item.fotoUrl!.isNotEmpty
+                                          ? Image.network(
+                                              item.fotoUrl!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  const Icon(
+                                                Icons.bed,
+                                                color: Color(0xFFB57514),
+                                                size: 27,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.bed,
+                                              color: Color(0xFFB57514),
+                                              size: 27,
+                                            ),
                                     ),
 
                                     const SizedBox(
@@ -511,37 +531,27 @@ class _DataKamarPageState extends State<DataKamarPage> {
                                           ),
 
                                           Container(
-                                            padding:
-                                            const EdgeInsets
-                                                .symmetric(
+                                            padding: const EdgeInsets.symmetric(
                                               horizontal: 7,
                                               vertical: 2,
                                             ),
-                                            decoration:
-                                            BoxDecoration(
-                                              color:
-                                              const Color(
-                                                0xFFA5E8BE,
-                                              ),
+                                            decoration: BoxDecoration(
+                                              color: item.isTerisi
+                                                  ? const Color(0xFFFFD6D1)
+                                                  : const Color(0xFFA5E8BE),
                                               borderRadius:
-                                              BorderRadius
-                                                  .circular(
-                                                3,
-                                              ),
+                                                  BorderRadius.circular(3),
                                             ),
-                                            child:
-                                            const Text(
-                                              'Tersedia',
-                                              style:
-                                              TextStyle(
+                                            child: Text(
+                                              item.isTerisi
+                                                  ? 'Terisi'
+                                                  : 'Tersedia',
+                                              style: TextStyle(
                                                 fontSize: 5.5,
-                                                fontWeight:
-                                                FontWeight
-                                                    .bold,
-                                                color:
-                                                Color(
-                                                  0xFF1B6533,
-                                                ),
+                                                fontWeight: FontWeight.bold,
+                                                color: item.isTerisi
+                                                    ? const Color(0xFFB3261E)
+                                                    : const Color(0xFF1B6533),
                                               ),
                                             ),
                                           ),

@@ -30,8 +30,10 @@ class Pembayaran {
     return 'Rp $ribuan';
   }
 
+  DateTime? get tanggalDateTime => DateTime.tryParse(tanggal)?.toLocal();
+
   String get tanggalFormatted {
-    final dt = DateTime.tryParse(tanggal)?.toLocal();
+    final dt = tanggalDateTime;
     if (dt == null) return tanggal;
 
     const bulanIndo = [
@@ -97,9 +99,8 @@ class Pembayaran {
       id: json['id']?.toString() ?? '',
       nama: namaLengkap.isNotEmpty ? namaLengkap : 'Tanpa Nama',
       kamar: nomorKamar.isNotEmpty ? nomorKamar : '-',
-      // Sesuaikan key 'jumlah_tagihan' & 'jatuh_tempo' dengan kolom di tabel tagihan Anda
       nominal: (json['jumlah_tagihan'] ?? json['nominal'] ?? json['total_tagihan'] ?? 0).toString(),
-      tanggal: (json['jatuh_tempo'] ?? json['created_at'] ?? '').toString(),
+      tanggal: (json['tanggal_jatuh_tempo'] ?? json['jatuh_tempo'] ?? json['diterbitkan_pada'] ?? '').toString(),
       status: json['status']?.toString() ?? 'belum_bayar',
       buktiTransfer: null,
       catatan: null,

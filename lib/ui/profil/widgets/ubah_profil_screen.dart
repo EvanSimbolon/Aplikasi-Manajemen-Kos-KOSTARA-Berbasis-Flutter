@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:belajar_dart/data/services/image_picker_service.dart';
 import 'package:belajar_dart/ui/core/themes/app_colors.dart';
@@ -70,31 +69,21 @@ class _UbahProfilScreenState extends State<UbahProfilScreen> {
 
     setState(() => loading = true);
     try {
-      final userId =
-          _viewModel.profil.id ??
-          Supabase.instance.client.auth.currentUser?.id;
-
-      String? urlBaru;
-      if (foto != null && userId != null) {
-        final client = Supabase.instance.client;
-        final namaFile = foto!.path.split(RegExp(r'[\\/]')).last;
-        final ekstensi = namaFile.contains('.')
-            ? namaFile.split('.').last
-            : 'jpg';
-        final path = '$userId/${DateTime.now().millisecondsSinceEpoch}.$ekstensi';
-
-        await client.storage.from('foto-profil').upload(path, foto!);
-        urlBaru = client.storage.from('foto-profil').getPublicUrl(path);
-        await client
-            .from('profil_pengguna')
-            .update({'foto_url': urlBaru})
-            .eq('pengguna_id', userId);
+      String? urlBaru = fotoUrl;
+      if (foto != null) {
+        urlBaru = await _viewModel.unggahFoto(foto!);
+        if (urlBaru == null) {
+          throw StateError(
+            _viewModel.errorMessage ?? 'Gagal mengunggah foto profil.',
+          );
+        }
       }
 
       final berhasil = await _viewModel.simpan(
         nama: namaCtrl.text,
         email: emailCtrl.text,
         telp: telpCtrl.text,
+        fotoUrl: urlBaru,
       );
 
       if (!mounted) return;

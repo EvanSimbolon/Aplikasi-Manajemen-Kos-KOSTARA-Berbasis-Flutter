@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'package:belajar_dart/data/services/auth_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
+import 'package:belajar_dart/ui/profil/view_models/profil_view_model.dart';
 
-class ProfilPage extends StatelessWidget {
+class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
 
+  @override
+  State<ProfilPage> createState() => _ProfilPageState();
+}
+
+class _ProfilPageState extends State<ProfilPage> {
   static const Color _background = Color(0xFFFFF7D4);
   static const Color _headerBrown = Color(0xFF854836);
   static const Color _primaryText = Color(0xFF4C3D3D);
@@ -17,8 +23,29 @@ class ProfilPage extends StatelessWidget {
   static const Color _navBorder = Color(0xFF303030);
   static const Color _logoutRed = Color(0xFFED6969);
 
+  final ProfilViewModel _viewModel = ProfilViewModel();
+
+  @override
+  void initState() {
+    super.initState();
+    _viewModel.addListener(_onChanged);
+    _viewModel.load();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _viewModel.removeListener(_onChanged);
+    _viewModel.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final profil = _viewModel.profil;
     return Scaffold(
       backgroundColor: _background,
       body: Center(
@@ -100,22 +127,38 @@ class ProfilPage extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: _accentText, width: 2),
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 38,
-                      color: _accentText,
+                    child: ClipOval(
+                      child: profil.fotoUrl == null
+                          ? const Icon(
+                              Icons.person,
+                              size: 38,
+                              color: _accentText,
+                            )
+                          : Image.network(
+                              profil.fotoUrl!,
+                              width: 68,
+                              height: 68,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const Icon(
+                                Icons.person,
+                                size: 38,
+                                color: _accentText,
+                              ),
+                            ),
                     ),
                   ),
                 ),
-                const Positioned(
+                Positioned(
                   left: 131,
                   top: 212,
                   child: SizedBox(
-                    width: 124,
+                    width: 160,
                     height: 20,
                     child: Text(
-                      'Dion Prayoga',
-                      style: TextStyle(
+                      profil.nama,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: _primaryText,
                         fontSize: 16,
                         fontFamily: 'Inter',
@@ -145,26 +188,41 @@ class ProfilPage extends StatelessWidget {
                 _buildInfoRow(
                   icon: Icons.email_outlined,
                   label: 'Email',
-                  value: 'dionprayoga@gmail.com',
+                  value: profil.email,
                   labelLeft: 80,
-                  valueLeft: 218,
+                  valueLeft: 160,
                   top: 315,
                 ),
                 _buildInfoRow(
                   icon: Icons.phone_outlined,
                   label: 'No. Telepon',
-                  value: '0811-2233-4455',
+                  value: profil.telp,
                   labelLeft: 79,
-                  valueLeft: 262,
+                  valueLeft: 190,
                   top: 336,
                 ),
+                if (_viewModel.errorMessage != null)
+                  Positioned(
+                    left: 46,
+                    top: 354,
+                    child: Text(
+                      _viewModel.errorMessage!,
+                      style: const TextStyle(
+                        color: _logoutRed,
+                        fontSize: 10,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ),
                 _buildMenuRow(
                   icon: Icons.person_outline,
                   label: 'Ubah Profil',
                   labelLeft: 78,
                   top: 375,
-                  onTap: () =>
-                      Navigator.of(context).pushNamed(AppRoutes.ubahProfil),
+                  onTap: () async {
+                    await Navigator.of(context).pushNamed(AppRoutes.ubahProfil);
+                    if (mounted) _viewModel.load();
+                  },
                 ),
                 _buildMenuRow(
                   icon: Icons.settings_outlined,
@@ -246,13 +304,18 @@ class ProfilPage extends StatelessWidget {
         Positioned(
           left: valueLeft,
           top: top,
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: _primaryText,
-              fontSize: 13,
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w700,
+          child: SizedBox(
+            width: 390 - valueLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _primaryText,
+                fontSize: 13,
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),

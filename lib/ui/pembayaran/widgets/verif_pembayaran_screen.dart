@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:belajar_dart/domain/models/pembayaran.dart';
 import 'package:belajar_dart/ui/pembayaran/view_models/pembayaran_view_model.dart';
 
@@ -30,7 +31,7 @@ class _VerifPembayaranState extends State<verif_pembayaran> {
     final success = await viewModel.verifikasi(
       pembayaranId: item.id,
       tagihanId: item.tagihanId,
-      adminId: 'admin',
+      adminId: Supabase.instance.client.auth.currentUser?.id ?? '',
       statusSetuju: statusSetuju,
     );
 

@@ -1,6 +1,7 @@
 class Penghuni {
   const Penghuni({
     this.id,
+    this.penyewaanId,
     required this.nama,
     required this.roomDetails,
     required this.status,
@@ -8,6 +9,7 @@ class Penghuni {
   });
 
   final String? id;
+  final String? penyewaanId;
   final String nama;
   final String roomDetails;
   final String status;

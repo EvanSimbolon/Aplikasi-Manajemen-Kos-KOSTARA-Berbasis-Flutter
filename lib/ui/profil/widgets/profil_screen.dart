@@ -194,15 +194,26 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         Container(
                           width: 40,
                           height: 40,
+                          clipBehavior: Clip.antiAlias,
                           decoration: const BoxDecoration(
                             color: profilPict,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 28,
-                          ),
+                          child: profil.fotoUrl == null
+                              ? const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 28,
+                                )
+                              : Image.network(
+                                  profil.fotoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(

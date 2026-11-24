@@ -1,4 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import 'package:belajar_dart/data/services/image_picker_service.dart';
+import 'package:belajar_dart/ui/profil/view_models/profil_view_model.dart';
 
 class UbahProfilPage extends StatefulWidget {
   const UbahProfilPage({super.key});
@@ -18,20 +23,38 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
   static const Color _error = Color(0xFFED6969);
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _emailController;
-  late final TextEditingController _phoneController;
-  late final TextEditingController _addressController;
+  final ProfilViewModel _viewModel = ProfilViewModel();
+  final ImagePickerService _imagePicker = ImagePickerService();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  File? _foto;
+  String? _fotoUrl;
+  bool _loading = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: 'Dion Prayoga');
-    _emailController = TextEditingController(text: 'dionprayoga@gmail.com');
-    _phoneController = TextEditingController(text: '0811-2233-4455');
-    _addressController = TextEditingController(
-      text: 'Jl. Melati No. 10, Yogyakarta',
-    );
+    _muatProfil();
+  }
+
+  Future<void> _muatProfil() async {
+    await _viewModel.load();
+    if (!mounted) return;
+
+    setState(() {
+      _nameController.text = _viewModel.profil.nama;
+      _emailController.text = _viewModel.profil.email;
+      _phoneController.text = _viewModel.profil.telp;
+      _addressController.text = _viewModel.profil.alamat ?? '';
+      _fotoUrl = _viewModel.profil.fotoUrl;
+    });
+  }
+
+  Future<void> _pilihFoto() async {
+    final picked = await _imagePicker.pickImageFromGallery();
+    if (picked != null && mounted) setState(() => _foto = picked);
   }
 
   @override
@@ -40,6 +63,7 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
@@ -108,6 +132,48 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Center(
+                            child: GestureDetector(
+                              onTap: _loading ? null : _pilihFoto,
+                              child: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 40,
+                                    backgroundColor: _fieldBackground,
+                                    backgroundImage: _foto != null
+                                        ? FileImage(_foto!)
+                                        : (_fotoUrl != null
+                                              ? NetworkImage(_fotoUrl!)
+                                              : null),
+                                    child: _foto == null && _fotoUrl == null
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 42,
+                                            color: _accent,
+                                          )
+                                        : null,
+                                  ),
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           _buildField(
                             label: 'Nama Lengkap',
                             hint: 'Masukkan nama lengkap',
@@ -125,6 +191,7 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
                             hint: 'Masukkan email',
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            readOnly: true,
                             validator: (value) {
                               final email = value?.trim() ?? '';
                               if (email.isEmpty || !email.contains('@')) {
@@ -158,7 +225,7 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
                             width: double.infinity,
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: _save,
+                              onPressed: _loading ? null : _save,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _accent,
                                 foregroundColor: Colors.white,
@@ -167,14 +234,23 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Text(
-                                'Simpan Perubahan',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Simpan Perubahan',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontFamily: 'Inter',
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],
@@ -196,6 +272,7 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
     required TextEditingController controller,
     TextInputType? keyboardType,
     int maxLines = 1,
+    bool readOnly = false,
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -215,6 +292,7 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          readOnly: readOnly,
           validator: validator,
           style: const TextStyle(
             color: _primaryText,
@@ -261,14 +339,45 @@ class _UbahProfilPageState extends State<UbahProfilPage> {
     );
   }
 
-  void _save() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _save() async {
+    if (_loading || !_formKey.currentState!.validate()) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profil berhasil diperbarui')),
-    );
-    Navigator.of(context).maybePop();
+    setState(() => _loading = true);
+    try {
+      String? fotoUrl = _fotoUrl;
+      if (_foto != null) {
+        fotoUrl = await _viewModel.unggahFoto(_foto!);
+        if (fotoUrl == null) {
+          throw StateError(
+            _viewModel.errorMessage ?? 'Gagal mengunggah foto profil.',
+          );
+        }
+      }
+
+      final berhasil = await _viewModel.simpan(
+        nama: _nameController.text,
+        email: _emailController.text,
+        telp: _phoneController.text,
+        alamat: _addressController.text.trim(),
+        fotoUrl: fotoUrl,
+      );
+
+      if (!mounted) return;
+      if (!berhasil) {
+        throw StateError(_viewModel.errorMessage ?? 'Gagal menyimpan profil.');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil berhasil diperbarui')),
+      );
+      Navigator.of(context).maybePop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui profil: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 }

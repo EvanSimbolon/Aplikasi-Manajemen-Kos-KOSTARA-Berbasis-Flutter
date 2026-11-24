@@ -102,10 +102,48 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     });
   }
 
-  /// Pengambilan data awal (select biasa) -> tetap jalan walau realtime gagal
-  Future<void> _muatAwal() async {
+  /// Mengambil daftar kos_id yang dimiliki oleh admin/pemilik yang sedang login.
+  Future<List<String>> _ambilKosIdsPemilik() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return const [];
+
+    final ids = <String>{};
     try {
-      final data = await supabase.from('penyewaan').select();
+      final kosList = await supabase
+          .from('kos')
+          .select('id')
+          .eq('pemilik_id', user.id);
+      for (final r in kosList) {
+        if (r['id'] != null) ids.add(r['id'].toString());
+      }
+    } catch (_) {}
+
+    try {
+      final anggota = await supabase
+          .from('anggota_kos')
+          .select('kos_id')
+          .eq('pengguna_id', user.id)
+          .eq('peran', 'pemilik')
+          .eq('status', 'aktif');
+      for (final r in anggota) {
+        if (r['kos_id'] != null) ids.add(r['kos_id'].toString());
+      }
+    } catch (_) {}
+
+    return ids.toList();
+  }
+
+  /// Pengambilan data awal (select biasa) sesuai kos_id pemilik -> tetap jalan walau realtime gagal
+  Future<void> _muatAwal() async {
+    final kosIds = await _ambilKosIdsPemilik();
+
+    try {
+      final query = supabase
+          .from('penyewaan')
+          .select('id, penghuni_id, status, tanggal_mulai, tanggal_selesai, kamar!inner ( kos_id )');
+      final data = kosIds.isNotEmpty
+          ? await query.inFilter('kamar.kos_id', kosIds)
+          : await query;
       debugPrint('DASH penyewaan select: ${data.length} baris');
       _hitungPenghuni(List<Map<String, dynamic>>.from(data));
     } catch (e) {
@@ -118,7 +156,13 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     }
 
     try {
-      final data = await supabase.from('pembayaran').select();
+      final query = supabase.from('pembayaran').select(
+        'id, jumlah_pembayaran, dibayar_pada, status, '
+        'tagihan!inner ( penyewaan!inner ( kamar!inner ( kos_id ) ) )',
+      );
+      final data = kosIds.isNotEmpty
+          ? await query.inFilter('tagihan.penyewaan.kamar.kos_id', kosIds)
+          : await query;
       debugPrint('DASH pembayaran select: ${data.length} baris');
       _hitungPembayaran(List<Map<String, dynamic>>.from(data));
     } catch (e) {
@@ -131,26 +175,20 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     }
   }
 
-  /// Realtime penyewaan
+  /// Realtime penyewaan (re-fetch terfilter kos_id saat ada perubahan)
   void _listenPenghuni() {
     _penghuniSub =
         supabase.from('penyewaan').stream(primaryKey: ['id']).listen(
-              (rows) {
-            debugPrint('DASH penyewaan stream: ${rows.length} baris');
-            _hitungPenghuni(rows);
-          },
+              (_) => _muatAwal(),
           onError: (e) => debugPrint('DASH penyewaan stream ERROR: $e'),
         );
   }
 
-  /// Realtime pembayaran
+  /// Realtime pembayaran (re-fetch terfilter kos_id saat ada perubahan)
   void _listenPembayaran() {
     _pembayaranSub =
         supabase.from('pembayaran').stream(primaryKey: ['id']).listen(
-              (rows) {
-            debugPrint('DASH pembayaran stream: ${rows.length} baris');
-            _hitungPembayaran(rows);
-          },
+              (_) => _muatAwal(),
           onError: (e) => debugPrint('DASH pembayaran stream ERROR: $e'),
         );
   }
@@ -267,7 +305,10 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                             ),
-                            onPressed: () {},
+                            onPressed: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.dataPenghuni,
+                            ),
                             child: const Text(
                               'Cek Sekarang',
                               style: TextStyle(
@@ -370,7 +411,7 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Grid Menu Cepat
+              // Grid Menu Cepat (tanpa redundansi)
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -380,46 +421,35 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
                 childAspectRatio: 1.6,
                 children: [
                   _buildMenuItem(
-                    Icons.home_rounded,
-                    'Kamar Tersedia',
-                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
-                  ),
-                  _buildMenuItem(
-                    Icons.group_rounded,
-                    'Kamar Terisi',
-                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
-                  ),
-                  _buildMenuItem(
-                    Icons.credit_card_rounded,
-                    'Belum Dibayar',
-                        () =>
-                        Navigator.pushNamed(context, AppRoutes.dataPembayaran),
-                  ),
-                  _buildMenuItem(
-                    Icons.add_home_rounded,
-                    'Kamar',
-                        () => Navigator.pushNamed(context, AppRoutes.dataKamar),
-                  ),
-                  _buildMenuItem(
-                    Icons.calendar_month_rounded,
-                    'Kalender',
-                        () => Navigator.pushNamed(context, AppRoutes.kalender),
+                    Icons.bed_rounded,
+                    'Kelola Kamar',
+                    () => Navigator.pushNamed(context, AppRoutes.dataKamar),
                   ),
                   _buildMenuItem(
                     Icons.person_rounded,
                     'Penghuni',
-                        () => Navigator.pushNamed(context, AppRoutes.dataPenghuni),
+                    () => Navigator.pushNamed(context, AppRoutes.dataPenghuni),
                   ),
                   _buildMenuItem(
-                    Icons.history,
-                    'Riwayat Pembayaran',
-                        () =>
+                    Icons.credit_card_rounded,
+                    'Pembayaran',
+                    () =>
                         Navigator.pushNamed(context, AppRoutes.dataPembayaran),
                   ),
                   _buildMenuItem(
                     Icons.handyman_rounded,
                     'Maintenance',
-                        () => Navigator.pushNamed(context, AppRoutes.maintenance),
+                    () => Navigator.pushNamed(context, AppRoutes.maintenance),
+                  ),
+                  _buildMenuItem(
+                    Icons.calendar_month_rounded,
+                    'Kalender',
+                    () => Navigator.pushNamed(context, AppRoutes.kalender),
+                  ),
+                  _buildMenuItem(
+                    Icons.report_problem_rounded,
+                    'Daftar Keluhan',
+                    () => Navigator.pushNamed(context, AppRoutes.adminKeluhan),
                   ),
                 ],
               ),

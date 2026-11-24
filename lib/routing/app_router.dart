@@ -4,10 +4,12 @@ import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/admin_dashboard/widgets/dashboard_admin_screen.dart';
 import 'package:belajar_dart/ui/auth/widgets/landing_screen.dart';
 import 'package:belajar_dart/ui/auth/widgets/login_screen.dart';
+import 'package:belajar_dart/ui/auth/widgets/reset_password_screen.dart';
 import 'package:belajar_dart/ui/dashboard/widgets/dashboard_screen.dart';
 import 'package:belajar_dart/ui/fasilitas_kamar/fasilitas_kamar_screen.dart';
 import 'package:belajar_dart/ui/kalender/widgets/kalender_screen.dart';
 import 'package:belajar_dart/ui/kamar/widgets/kamar_screen.dart';
+import 'package:belajar_dart/ui/keluhan/widgets/admin_keluhan_screen.dart';
 import 'package:belajar_dart/ui/keluhan/widgets/ajukan_keluhan_screen.dart';
 import 'package:belajar_dart/ui/maintenance/maintenance_screen.dart';
 import 'package:belajar_dart/ui/pembayaran/widgets/bukti_pembayaran_screen.dart';
@@ -37,34 +39,27 @@ class AppRouter {
     // ---------- Auth ----------
     AppRoutes.landing: (context) => const LandingScreen(),
     AppRoutes.login: (context) => const LoginScreen(),
+    AppRoutes.resetPassword: (context) => const ResetPasswordScreen(),
 
     // ---------- Penghuni ----------
     AppRoutes.dashboard: (context) => const DashboardPage(),
     AppRoutes.kalender: (context) => const KalenderScreen(),
     AppRoutes.tenantKeluhan: (context) => _shell(
-      AjukanKeluhanScreen(
-        onBack: () => Navigator.of(context).maybePop(),
-      ),
+      AjukanKeluhanScreen(onBack: () => Navigator.of(context).maybePop()),
     ),
     AppRoutes.tenantRiwayat: (context) => _shell(
-      RiwayatPembayaranScreen(
-        onBack: () => Navigator.of(context).maybePop(),
-      ),
+      RiwayatPembayaranScreen(onBack: () => Navigator.of(context).maybePop()),
     ),
     AppRoutes.tenantBuktiPembayaran: (context) => _shell(
-      BuktiPembayaranScreen(
-        onBack: () => Navigator.of(context).maybePop(),
-      ),
+      BuktiPembayaranScreen(onBack: () => Navigator.of(context).maybePop()),
     ),
     AppRoutes.tenantProfil: (context) => _shell(
       ProfilScreen(
         onBack: () => Navigator.of(context).maybePop(),
-        onUbahProfil: () => Navigator.of(context).pushNamed(
-          AppRoutes.tenantUbahProfil,
-        ),
-        onPengaturan: () => Navigator.of(context).pushNamed(
-          AppRoutes.tenantPengaturan,
-        ),
+        onUbahProfil: () =>
+            Navigator.of(context).pushNamed(AppRoutes.tenantUbahProfil),
+        onPengaturan: () =>
+            Navigator.of(context).pushNamed(AppRoutes.tenantPengaturan),
       ),
     ),
     AppRoutes.tenantUbahProfil: (context) => _shell(
@@ -74,9 +69,7 @@ class AppRouter {
       ),
     ),
     AppRoutes.tenantPengaturan: (context) => _shell(
-      PengaturanScreen(
-        onBack: () => Navigator.of(context).maybePop(),
-      ),
+      PengaturanScreen(onBack: () => Navigator.of(context).maybePop()),
     ),
 
     // ---------- Admin ----------
@@ -88,6 +81,7 @@ class AppRouter {
     AppRoutes.dataPenghuni: (context) => const data_penghuni(),
     AppRoutes.formPenghuni: (context) => const FormPenghuniScreen(),
     AppRoutes.maintenance: (context) => const MaintenancePage(),
+    AppRoutes.adminKeluhan: (context) => const AdminKeluhanScreen(),
 
     // ---------- Profil admin ----------
     AppRoutes.profil: (context) => const ProfilPage(),
