@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:belajar_dart/data/services/supabase_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
+import 'package:belajar_dart/ui/core/ui/floating_bottom_nav.dart';
 import 'package:belajar_dart/utils/formatters.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -16,53 +17,18 @@ class _DashboardPageState extends State<DashboardPage> {
   static const Color _background = Color(0xFFFFF7D4);
   static const Color _primaryText = Color(0xFF4C3D3D);
   static const Color _mutedText = Color(0xFF8A7C6B);
-  static const Color _cardBackground = Color(0xFFF8EBD2);
-  static const Color _cardBorder = Color(0xFFD1BC96);
-  static const Color _activeOrange = Color(0xFFF5A623);
-  static const Color _navBorder = Color(0xFF303030);
+  static const Color _cardBackground = Color(0xFFFFFBF3);
+  static const Color _cardBorder = Color(0xFFDEC9A4);
   static const Color _activeBadgeBackground = Color(0xFFDCE9D4);
-  static const Color _activeBadgeText = Color(0xFF557A45);
+  static const Color _activeBadgeText = Color(0xFF2E6B3E);
 
-  static const TextStyle _headingStyle = TextStyle(
-    color: _primaryText,
-    fontSize: 30,
-    fontFamily: 'Inter',
-    fontWeight: FontWeight.w700,
-  );
-
-  static const TextStyle _subheadingStyle = TextStyle(
-    color: _mutedText,
-    fontSize: 15,
-    fontFamily: 'Inter',
-    fontWeight: FontWeight.w700,
-  );
-
-  static const TextStyle _sectionTitleStyle = TextStyle(
-    color: _primaryText,
-    fontSize: 20,
-    fontFamily: 'Inter',
-    fontWeight: FontWeight.w700,
-  );
-
-  static const TextStyle _cardTextStyle = TextStyle(
-    color: _primaryText,
-    fontSize: 10,
-    fontFamily: 'Inter',
-    fontWeight: FontWeight.w700,
-  );
-
-  static const TextStyle _whiteSmallStyle = TextStyle(
-    color: Colors.white,
-    fontSize: 12,
-    fontFamily: 'Inter',
-    fontWeight: FontWeight.w500,
-  );
+  int _selectedIndex = 0;
 
   String _namaPenghuni = 'Penghuni';
   String _nominalTagihan = 'Rp 0';
   String _jatuhTempoText = 'Tidak ada tagihan aktif';
   String _nomorKamar = '-';
-  String _fasilitasText = '-';
+  List<String> _fasilitasChips = const [];
   String? _fotoKamarUrl;
   String _statusSewa = 'Aktif';
 
@@ -73,6 +39,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   String _aktivitasTitle = 'Belum ada laporan keluhan';
   String _aktivitasDate = '-';
+  String? _aktivitasStatus;
 
   @override
   void initState() {
@@ -115,7 +82,6 @@ class _DashboardPageState extends State<DashboardPage> {
             .limit(1)
             .maybeSingle();
       } catch (_) {
-        // Fallback jika kolom foto_url belum ada
         penyewaan = await client
             .from('penyewaan')
             .select(
@@ -131,7 +97,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
 
       String nomorKamar = '-';
-      String fasilitasText = 'Belum ada fasilitas terdaftar';
+      List<String> fasilitasChips = const [];
       String? fotoKamarUrl;
       String statusSewa = 'Aktif';
       String nominalTagihan = 'Rp 0';
@@ -151,14 +117,11 @@ class _DashboardPageState extends State<DashboardPage> {
         kosId = kamar?['kos_id']?.toString();
 
         final fkList = kamar?['fasilitas_kamar'] as List<dynamic>? ?? const [];
-        final namaFasilitas = fkList
+        fasilitasChips = fkList
             .map((e) => (e as Map?)?['jenis_fasilitas']?['nama_fasilitas'])
             .where((n) => n != null && n.toString().trim().isNotEmpty)
             .map((n) => n.toString())
             .toList();
-        if (namaFasilitas.isNotEmpty) {
-          fasilitasText = namaFasilitas.join(' · ');
-        }
 
         // 3. Tagihan belum dibayar milik penyewaan ini
         if (penyewaanId != null) {
@@ -176,8 +139,8 @@ class _DashboardPageState extends State<DashboardPage> {
             final jt = Formatters.parseDate(tagihan['tanggal_jatuh_tempo']);
             nominalTagihan = Formatters.rupiah(jumlah);
             jatuhTempoText = jt == null
-                ? 'Jatuh Tempo : -'
-                : 'Jatuh Tempo : ${Formatters.tanggalPanjang(jt)}';
+                ? 'Jatuh Tempo: -'
+                : 'Jatuh Tempo: ${Formatters.tanggalPanjang(jt)}';
             jadwalBayarDate = jt == null ? '-' : Formatters.tanggalPanjang(jt);
             jadwalBayarTitle = 'Jatuh Tempo Pembayaran';
           } else {
@@ -187,8 +150,8 @@ class _DashboardPageState extends State<DashboardPage> {
             final mulai = Formatters.parseDate(penyewaan['tanggal_mulai']);
             nominalTagihan = Formatters.rupiah(hargaSewa);
             jatuhTempoText = mulai == null
-                ? 'Status : Lunas / Belum ada tagihan'
-                : 'Mulai Sewa : ${Formatters.tanggalPanjang(mulai)}';
+                ? 'Status: Lunas / Belum ada tagihan'
+                : 'Mulai Sewa: ${Formatters.tanggalPanjang(mulai)}';
             jadwalBayarDate =
                 mulai == null ? '-' : Formatters.tanggalPanjang(mulai);
             jadwalBayarTitle = 'Awal Sewa Kamar $nomorKamar';
@@ -218,7 +181,7 @@ class _DashboardPageState extends State<DashboardPage> {
           final km = (maint['kamar'] as Map?)?['nomor_kamar']?.toString();
           final jenis = maint['jenis_perawatan']?.toString() ?? 'Maintenance';
           jadwalMaintDate = tgl == null ? '-' : Formatters.tanggalPanjang(tgl);
-          jadwalMaintTitle = km != null ? '$jenis (Kamar $km)' : jenis;
+          jadwalMaintTitle = km != null ? '$jenis • Kamar $km' : jenis;
         }
       } catch (e) {
         debugPrint('Dashboard maintenance fetch: $e');
@@ -227,6 +190,7 @@ class _DashboardPageState extends State<DashboardPage> {
       // 5. Aktivitas terbaru (keluhan terbaru penghuni)
       String aktivitasTitle = 'Belum ada laporan keluhan';
       String aktivitasDate = '-';
+      String? aktivitasStatus;
       try {
         final keluhan = await client
             .from('laporan_kerusakan')
@@ -237,9 +201,9 @@ class _DashboardPageState extends State<DashboardPage> {
             .maybeSingle();
         if (keluhan != null) {
           final tgl = Formatters.parseDate(keluhan['dilaporkan_pada']);
-          aktivitasTitle =
-              'Keluhan: ${keluhan['judul'] ?? '-'} (${keluhan['status'] ?? '-'})';
+          aktivitasTitle = keluhan['judul']?.toString() ?? 'Laporan Keluhan';
           aktivitasDate = tgl == null ? '-' : Formatters.tanggalPanjang(tgl);
+          aktivitasStatus = keluhan['status']?.toString();
         }
       } catch (e) {
         debugPrint('Dashboard keluhan fetch: $e');
@@ -251,7 +215,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _nominalTagihan = nominalTagihan;
         _jatuhTempoText = jatuhTempoText;
         _nomorKamar = nomorKamar;
-        _fasilitasText = fasilitasText;
+        _fasilitasChips = fasilitasChips;
         _fotoKamarUrl = fotoKamarUrl;
         _statusSewa = statusSewa;
         _jadwalBayarDate = jadwalBayarDate;
@@ -260,6 +224,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _jadwalMaintTitle = jadwalMaintTitle;
         _aktivitasTitle = aktivitasTitle;
         _aktivitasDate = aktivitasDate;
+        _aktivitasStatus = aktivitasStatus;
       });
     } catch (e) {
       debugPrint('DashboardPage._muatDataDashboard: $e');
@@ -270,247 +235,405 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
-      body: Center(
-        child: FittedBox(
-          fit: BoxFit.contain,
-          child: Container(
-            width: 428,
-            height: 926,
-            clipBehavior: Clip.antiAlias,
-            decoration: const BoxDecoration(color: _background),
-            child: Stack(
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: const Color(0xFF854836),
+          onRefresh: _muatDataDashboard,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Positioned(
-                  left: 28,
-                  top: 43,
-                  right: 80,
-                  child: Text(
-                    'HALO $_namaPenghuni',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _headingStyle,
-                  ),
-                ),
-                const Positioned(
-                  left: 28,
-                  top: 80,
-                  child: Text(
-                    'Selamat datang kembali !',
-                    style: _subheadingStyle,
-                  ),
-                ),
-                Positioned(
-                  left: 361,
-                  top: 49,
-                  child: GestureDetector(
-                    onTap: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.kalender),
-                    child: const SizedBox(
-                      width: 31,
-                      height: 31,
-                      child: Icon(
-                        Icons.notifications,
-                        size: 28,
-                        color: _primaryText,
+                // Header Sambutan
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Halo, $_namaPenghuni',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _primaryText,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Selamat datang kembali di KOSTARA',
+                            style: TextStyle(
+                              color: _mutedText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
+                    InkWell(
+                      onTap: () =>
+                          Navigator.of(context).pushNamed(AppRoutes.kalender),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _cardBackground,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _cardBorder),
+                        ),
+                        child: const Icon(
+                          Icons.notifications_rounded,
+                          size: 24,
+                          color: _primaryText,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+
+                const SizedBox(height: 18),
+
+                // Kartu Tagihan Bulan Ini
                 _buildBillCard(context),
-                const Positioned(
-                  left: 28,
-                  top: 306,
-                  child: Text('Kamar Saya', style: _sectionTitleStyle),
+
+                const SizedBox(height: 22),
+
+                // Bagian Kamar Saya
+                const Text(
+                  'Kamar Saya',
+                  style: TextStyle(
+                    color: _primaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
+                const SizedBox(height: 10),
                 _buildRoomCard(),
-                Positioned(
-                  left: 45,
-                  top: 528,
-                  child: Text(
-                    'Kamar $_nomorKamar',
-                    style: const TextStyle(
-                      color: Color(0xFF382017),
-                      fontSize: 13,
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 45,
-                  top: 550,
-                  right: 100,
-                  child: Text(
-                    _fasilitasText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF927B6B),
-                      fontSize: 11,
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 335,
-                  top: 532,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _activeBadgeBackground,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _statusSewa,
-                      style: const TextStyle(
-                        color: _activeBadgeText,
-                        fontSize: 10,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w700,
+
+                const SizedBox(height: 22),
+
+                // Bagian Jadwal Terdekat
+                Row(
+                  children: [
+                    const Text(
+                      'Jadwal Terdekat',
+                      style: TextStyle(
+                        color: _primaryText,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed(AppRoutes.kalender),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF854836),
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 28),
+                      ),
+                      child: const Text(
+                        'Lihat Kalender',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const Positioned(
-                  left: 32,
-                  top: 572,
-                  child: Text('Jadwal Terdekat', style: _sectionTitleStyle),
-                ),
+                const SizedBox(height: 8),
                 _buildScheduleCard(
-                  left: 30,
-                  top: 606,
-                  icon: Icons.notifications_active,
+                  icon: Icons.event_available_rounded,
+                  iconBg: const Color(0xFFFFE3E1),
+                  iconColor: const Color(0xFFC64A4A),
                   date: _jadwalBayarDate,
                   title: _jadwalBayarTitle,
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.kalender),
                 ),
+                const SizedBox(height: 10),
                 _buildScheduleCard(
-                  left: 27,
-                  top: 669,
-                  icon: Icons.build_circle_outlined,
+                  icon: Icons.handyman_rounded,
+                  iconBg: const Color(0xFFDCE9D4),
+                  iconColor: const Color(0xFF2E6B3E),
                   date: _jadwalMaintDate,
                   title: _jadwalMaintTitle,
+                  onTap: () =>
+                      Navigator.of(context).pushNamed(AppRoutes.kalender),
                 ),
-                const Positioned(
-                  left: 32,
-                  top: 750,
-                  child: Text('Aktivitas Terbaru', style: _sectionTitleStyle),
+
+                const SizedBox(height: 22),
+
+                // Bagian Aktivitas Terbaru
+                const Text(
+                  'Aktivitas Terbaru',
+                  style: TextStyle(
+                    color: _primaryText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                _buildActivityCard(),
-                _buildBottomNav(context),
+                const SizedBox(height: 10),
+                _buildActivityCard(context),
               ],
             ),
           ),
         ),
       ),
+      bottomNavigationBar: FloatingBottomNav(
+        selectedIndex: _selectedIndex,
+        items: const [
+          FloatingNavItem(icon: Icons.home_rounded, label: 'Beranda'),
+          FloatingNavItem(icon: Icons.calendar_month_rounded, label: 'Kalender'),
+          FloatingNavItem(icon: Icons.report_problem_rounded, label: 'Keluhan'),
+          FloatingNavItem(icon: Icons.history_rounded, label: 'Riwayat'),
+          FloatingNavItem(icon: Icons.person_rounded, label: 'Profil'),
+        ],
+        onTap: (index) async {
+          setState(() => _selectedIndex = index);
+          switch (index) {
+            case 1:
+              await Navigator.of(context).pushNamed(AppRoutes.kalender);
+              break;
+            case 2:
+              await Navigator.of(context).pushNamed(AppRoutes.tenantKeluhan);
+              break;
+            case 3:
+              await Navigator.of(context).pushNamed(AppRoutes.tenantRiwayat);
+              break;
+            case 4:
+              await Navigator.of(context).pushNamed(AppRoutes.tenantProfil);
+              break;
+          }
+          if (mounted) {
+            setState(() => _selectedIndex = 0);
+            _muatDataDashboard();
+          }
+        },
+      ),
     );
   }
 
   Widget _buildBillCard(BuildContext context) {
-    return Positioned(
-      left: 16,
-      top: 113,
-      child: Container(
-        width: 396,
-        height: 176,
-        padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFD98A2E), Color(0xFF6E4426)],
-          ),
-          borderRadius: BorderRadius.circular(22),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE88D1E), Color(0xFF733C24)],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Tagihan Bulan ini',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _whiteSmallStyle,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _nominalTagihan,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                height: 1.05,
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w700,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF733C24).withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Tagihan Bulan Ini',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Kamar $_nomorKamar',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _nominalTagihan,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
             ),
-            const SizedBox(height: 2),
-            Text(
-              _jatuhTempoText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _whiteSmallStyle,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _jatuhTempoText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
-            const Spacer(),
-            GestureDetector(
-              onTap: () async {
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: () async {
                 await Navigator.of(context).pushNamed(
                   AppRoutes.tenantBuktiPembayaran,
                 );
                 if (mounted) _muatDataDashboard();
               },
-              child: Container(
-                width: 180,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.black,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2B1810),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Text(
-                  'Bayar Sekarang',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFFF7F7F7),
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              ),
+              icon: const Icon(Icons.payment_rounded, size: 18),
+              label: const Text(
+                'Bayar Sekarang',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildRoomCard() {
-    return Positioned(
-      left: 28,
-      top: 337,
-      child: SizedBox(
-        width: 353,
-        height: 176,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: _fotoKamarUrl != null && _fotoKamarUrl!.isNotEmpty
-              ? Image.network(
-                  _fotoKamarUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: _buildRoomImageFallback,
-                )
-              : Image.asset(
-                  'assets/kamar_1_2.jpg',
-                  fit: BoxFit.cover,
-                  errorBuilder: _buildRoomImageFallback,
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _fotoKamarUrl != null && _fotoKamarUrl!.isNotEmpty
+                    ? Image.network(
+                        _fotoKamarUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: _buildRoomImageFallback,
+                      )
+                    : Image.asset(
+                        'assets/kamar_1_2.jpg',
+                        fit: BoxFit.cover,
+                        errorBuilder: _buildRoomImageFallback,
+                      ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _activeBadgeBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _statusSewa,
+                    style: const TextStyle(
+                      color: _activeBadgeText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-        ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kamar $_nomorKamar',
+                  style: const TextStyle(
+                    color: Color(0xFF382017),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_fasilitasChips.isEmpty)
+                  const Text(
+                    'Belum ada fasilitas terdaftar',
+                    style: TextStyle(color: _mutedText, fontSize: 12),
+                  )
+                else
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _fasilitasChips
+                        .map(
+                          (f) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7EEDD),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _cardBorder.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            child: Text(
+                              f,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _primaryText,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -522,52 +645,73 @@ class _DashboardPageState extends State<DashboardPage> {
   ) {
     return Container(
       color: const Color(0xFFE8DCC8),
-      child: const Icon(Icons.bed, size: 48, color: _primaryText),
+      alignment: Alignment.center,
+      child: const Icon(Icons.bed_rounded, size: 48, color: _primaryText),
     );
   }
 
   Widget _buildScheduleCard({
-    required double left,
-    required double top,
     required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
     required String date,
     required String title,
+    required VoidCallback onTap,
   }) {
-    return Positioned(
-      left: left,
-      top: top,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 375,
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 17),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _cardBackground,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _cardBorder),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 24, color: _primaryText),
-            const SizedBox(width: 8),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 22, color: iconColor),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    date,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _cardTextStyle,
-                  ),
                   Text(
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _cardTextStyle,
+                    style: const TextStyle(
+                      color: _primaryText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _mutedText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: _mutedText,
+              size: 20,
             ),
           ],
         ),
@@ -575,157 +719,81 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildActivityCard() {
-    return Positioned(
-      left: 24,
-      top: 785,
+  Widget _buildActivityCard(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).pushNamed(AppRoutes.tenantKeluhan);
+        if (mounted) _muatDataDashboard();
+      },
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 375,
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 17),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _cardBackground,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _cardBorder),
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.report_problem_outlined,
-              size: 24,
-              color: _primaryText,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF0C2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.report_problem_rounded,
+                size: 22,
+                color: Color(0xFFB54F00),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _aktivitasTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _cardTextStyle,
+                    style: const TextStyle(
+                      color: _primaryText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     _aktivitasDate,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _cardTextStyle,
+                    style: const TextStyle(
+                      color: _mutedText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
             ),
+            if (_aktivitasStatus != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7EEDD),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _aktivitasStatus!,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: _primaryText,
+                  ),
+                ),
+              ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Positioned(
-      left: 17,
-      top: 863,
-      child: Container(
-        width: 401,
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: ShapeDecoration(
-          color: Colors.black,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(width: 1, color: _navBorder),
-            borderRadius: BorderRadius.circular(13),
-          ),
-        ),
-        child: Row(
-          children: [
-            _buildNavItem(
-              icon: Icons.home,
-              label: 'Beranda',
-              active: true,
-              onTap: () => Navigator.of(context).popUntil(
-                (route) => route.isFirst,
-              ),
-            ),
-            _buildNavItem(
-              icon: Icons.credit_card,
-              label: 'Pembayaran',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.kalender,
-              ),
-            ),
-            _buildNavItem(
-              icon: Icons.report_problem_outlined,
-              label: 'Keluhan',
-              onTap: () async {
-                await Navigator.of(context).pushNamed(
-                  AppRoutes.tenantKeluhan,
-                );
-                if (mounted) _muatDataDashboard();
-              },
-            ),
-            _buildNavItem(
-              icon: Icons.history,
-              label: 'Riwayat',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.tenantRiwayat,
-              ),
-            ),
-            _buildNavItem(
-              icon: Icons.person,
-              label: 'Profil',
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.tenantProfil,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    bool active = false,
-    VoidCallback? onTap,
-  }) {
-    final Widget content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: Colors.white),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontFamily: 'Inter',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-
-    return Expanded(
-      child: Center(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: Container(
-            padding: active
-                ? const EdgeInsets.symmetric(horizontal: 8, vertical: 5)
-                : EdgeInsets.zero,
-            decoration: active
-                ? BoxDecoration(
-                    color: _activeOrange,
-                    borderRadius: BorderRadius.circular(10),
-                  )
-                : null,
-            child: content,
-          ),
         ),
       ),
     );

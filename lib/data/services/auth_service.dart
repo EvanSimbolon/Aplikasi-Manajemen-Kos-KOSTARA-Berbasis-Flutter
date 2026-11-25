@@ -115,6 +115,13 @@ class AuthService {
         .toList();
     if (peran.isNotEmpty) return peran;
 
+    final ownedKos = await SupabaseService.client
+        .from('kos')
+        .select('id')
+        .eq('pemilik_id', userId)
+        .limit(1);
+    if (ownedKos.isNotEmpty) return ['pemilik'];
+
     final sewa = await SupabaseService.client
         .from('penyewaan')
         .select('id')
@@ -123,6 +130,101 @@ class AuthService {
         .limit(1);
 
     return sewa.isEmpty ? peran : ['penghuni'];
+  }
+
+  /// Daftar akun pemilik (admin) baru dengan email & kata sandi sendiri.
+  /// Mengembalikan `true` jika langsung login, atau `false` jika butuh
+  /// konfirmasi email terlebih dahulu.
+  Future<bool> daftarOwner({
+    required String nama,
+    required String namaKos,
+    required String email,
+    required String password,
+  }) async {
+    final namaBersih = nama.trim();
+    final kosBersih = namaKos.trim();
+    final emailBersih = email.trim().toLowerCase();
+
+    if (namaBersih.isEmpty || kosBersih.isEmpty) {
+      throw const AuthFailure('Nama lengkap dan nama kos wajib diisi.');
+    }
+    if (!emailBersih.contains('@')) {
+      throw const AuthFailure('Format email tidak valid.');
+    }
+    if (password.length < 6) {
+      throw const AuthFailure('Kata sandi minimal 6 karakter.');
+    }
+
+    try {
+      final response = await SupabaseService.auth.signUp(
+        email: emailBersih,
+        password: password,
+        data: {'nama_lengkap': namaBersih, 'nama_kos': kosBersih},
+      );
+
+      if (response.session != null && response.user != null) {
+        await pastikanProfilPemilik(namaKosDefault: kosBersih);
+        return true;
+      }
+      return false;
+    } on AuthException catch (error) {
+      throw AuthFailure(_pesanAuth(error.message, 'Gagal mendaftar akun admin.'));
+    }
+  }
+
+  /// Login / Daftar akun pemilik (admin) via Google Single Sign-On (OAuth).
+  Future<void> loginOwnerDenganGoogle() async {
+    try {
+      await SupabaseService.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'kostara://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+    } on AuthException catch (error) {
+      throw AuthFailure(
+        _pesanAuth(error.message, 'Gagal masuk dengan akun Google.'),
+      );
+    }
+  }
+
+  /// Memastikan akun pemilik (misalnya setelah daftar email atau Google SSO)
+  /// sudah memiliki record `kos` dan `anggota_kos` dengan peran `'pemilik'`.
+  Future<void> pastikanProfilPemilik({String? namaKosDefault}) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+
+    final existingRoles = await _ambilPeran(user.id);
+    if (existingRoles.contains('pemilik')) return;
+
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final namaLengkap =
+        (meta['nama_lengkap'] ?? meta['full_name'] ?? meta['name'] ?? '')
+            .toString()
+            .trim();
+    final namaKos =
+        (namaKosDefault ?? meta['nama_kos'] ?? '').toString().trim().isNotEmpty
+            ? (namaKosDefault ?? meta['nama_kos']).toString().trim()
+            : (namaLengkap.isNotEmpty ? 'Kos $namaLengkap' : 'Kos Saya');
+
+    try {
+      final kosRow = await SupabaseService.client
+          .from('kos')
+          .insert({
+            'pemilik_id': user.id,
+            'nama_kos': namaKos,
+          })
+          .select('id')
+          .single();
+
+      await SupabaseService.client.from('anggota_kos').upsert({
+        'kos_id': kosRow['id'],
+        'pengguna_id': user.id,
+        'peran': 'pemilik',
+        'status': 'aktif',
+      }, onConflict: 'kos_id,pengguna_id');
+    } catch (_) {
+      // Jika sudah ada kos yang dibuat paralel, abaikan error duplikat.
+    }
   }
 
   Future<String?> currentRole() async {

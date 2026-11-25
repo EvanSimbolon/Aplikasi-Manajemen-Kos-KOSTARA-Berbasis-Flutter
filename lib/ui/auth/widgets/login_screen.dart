@@ -53,12 +53,173 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _daftar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Halaman pendaftaran akun admin belum tersedia.'),
+  bool _googleLoading = false;
+
+  Future<void> _masukDenganGoogle() async {
+    if (_googleLoading) return;
+    setState(() => _googleLoading = true);
+    try {
+      await const AuthService().loginOwnerDenganGoogle();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_pesanRamah(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
+  Future<void> _daftar() async {
+    final namaCtrl = TextEditingController();
+    final kosCtrl = TextEditingController();
+    final emailCtrl = TextEditingController(
+      text: _identifierController.text.trim(),
+    );
+    final sandiCtrl = TextEditingController();
+    final konfirmasiCtrl = TextEditingController();
+    var memuat = false;
+    String? pesanError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Daftar Akun Pemilik'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Buat akun pemilik kos baru menggunakan email Anda sendiri.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: namaCtrl,
+                  decoration: const InputDecoration(hintText: 'Nama lengkap'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: kosCtrl,
+                  decoration: const InputDecoration(hintText: 'Nama kos'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(hintText: 'Email pemilik'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: sandiCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Kata sandi (min. 6 karakter)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: konfirmasiCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Konfirmasi kata sandi',
+                  ),
+                ),
+                if (pesanError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    pesanError!,
+                    style: const TextStyle(
+                      color: Color(0xFFB3261E),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: memuat ? null : () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: memuat
+                  ? null
+                  : () async {
+                      if (namaCtrl.text.trim().isEmpty ||
+                          kosCtrl.text.trim().isEmpty ||
+                          emailCtrl.text.trim().isEmpty) {
+                        setDialogState(
+                          () => pesanError = 'Semua kolom wajib diisi.',
+                        );
+                        return;
+                      }
+                      if (sandiCtrl.text.length < 6 ||
+                          sandiCtrl.text != konfirmasiCtrl.text) {
+                        setDialogState(
+                          () => pesanError =
+                              'Kata sandi minimal 6 karakter dan harus sama.',
+                        );
+                        return;
+                      }
+
+                      setDialogState(() {
+                        memuat = true;
+                        pesanError = null;
+                      });
+                      try {
+                        final langsungMasuk =
+                            await const AuthService().daftarOwner(
+                          nama: namaCtrl.text,
+                          namaKos: kosCtrl.text,
+                          email: emailCtrl.text,
+                          password: sandiCtrl.text,
+                        );
+                        if (!mounted || !ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        if (langsungMasuk) {
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            AppRoutes.adminDashboard,
+                            (route) => false,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Pendaftaran berhasil! Periksa email untuk konfirmasi lalu masuk.',
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (error) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          memuat = false;
+                          pesanError = _pesanRamah(error);
+                        });
+                      }
+                    },
+              child: memuat
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Daftar'),
+            ),
+          ],
+        ),
       ),
     );
+
+    namaCtrl.dispose();
+    kosCtrl.dispose();
+    emailCtrl.dispose();
+    sandiCtrl.dispose();
+    konfirmasiCtrl.dispose();
   }
 
   String _pesanRamah(Object error) {
@@ -331,7 +492,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: _viewModel.isLoading ? null : _daftar,
+                    onPressed: (_viewModel.isLoading || _googleLoading)
+                        ? null
+                        : _daftar,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.primaryDark,
                       side: const BorderSide(color: AppTheme.primaryDark),
@@ -340,7 +503,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     child: const Text(
-                      'Daftar',
+                      'Daftar dengan Email',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
@@ -348,6 +511,66 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: AppTheme.primaryDark.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        'atau',
+                        style: TextStyle(fontSize: 11, color: Colors.black54),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: AppTheme.primaryDark.withValues(alpha: 0.25),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_viewModel.isLoading || _googleLoading)
+                        ? null
+                        : _masukDenganGoogle,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF2B1810),
+                      elevation: 1,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: Color(0xFFD8C8AE)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: _googleLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.g_mobiledata_rounded,
+                            size: 26,
+                            color: Color(0xFFDB4437),
+                          ),
+                    label: const Text(
+                      'Masuk / Daftar dengan Google',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ],
           ),

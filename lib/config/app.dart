@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:belajar_dart/config/app_config.dart';
+import 'package:belajar_dart/data/services/auth_service.dart';
 import 'package:belajar_dart/routing/app_router.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
@@ -29,6 +30,12 @@ class _KostaraAppState extends State<KostaraApp> {
           .listen((state) {
             if (state.event == AuthChangeEvent.passwordRecovery) {
               _bukaResetPassword();
+            } else if (state.event == AuthChangeEvent.signedIn) {
+              final provider =
+                  state.session?.user.appMetadata['provider']?.toString();
+              if (provider == 'google') {
+                unawaited(_tanganiGoogleAdminMasuk());
+              }
             }
           });
       unawaited(_tanganiTautanAwal());
@@ -37,12 +44,36 @@ class _KostaraAppState extends State<KostaraApp> {
     }
   }
 
+  Future<void> _tanganiGoogleAdminMasuk() async {
+    try {
+      await const AuthService().pastikanProfilPemilik();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          AppRoutes.adminDashboard,
+          (route) => false,
+        );
+      });
+    } catch (_) {
+      // Abaikan jika navigator belum siap.
+    }
+  }
+
   Future<void> _tanganiTautanAwal() async {
     try {
       final uri = await AppLinks().getInitialLink();
-      if (uri == null ||
-          uri.scheme != 'kostara' ||
-          uri.host != 'reset-password') {
+      if (uri == null || uri.scheme != 'kostara') {
+        return;
+      }
+
+      if (uri.host == 'login-callback') {
+        try {
+          await Supabase.instance.client.auth.getSessionFromUrl(uri);
+        } catch (_) {}
+        await _tanganiGoogleAdminMasuk();
+        return;
+      }
+
+      if (uri.host != 'reset-password') {
         return;
       }
 

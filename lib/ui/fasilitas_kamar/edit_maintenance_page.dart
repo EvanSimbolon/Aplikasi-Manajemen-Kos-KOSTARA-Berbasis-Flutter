@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/services/maintenance_service.dart';
@@ -36,6 +39,7 @@ class _EditMaintenancePageState
   late String _jenisPerawatan;
   late String _status;
   late DateTime _tanggalPerawatan;
+  File? _fotoBaru;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -119,6 +123,54 @@ class _EditMaintenancePageState
     }
   }
 
+  Future<void> _pilihFoto(ImageSource source) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+      if (picked != null && mounted) {
+        setState(() => _fotoBaru = File(picked.path));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _pesan('Gagal memilih foto: $e');
+    }
+  }
+
+  void _tampilkanPilihanFoto() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFFFBF3),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF753924)),
+              title: const Text('Ambil Foto dari Kamera'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pilihFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF753924)),
+              title: const Text('Pilih Foto dari Galeri'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pilihFoto(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _simpan() async {
     if (_kamarId == null) {
       _pesan('Silakan pilih kamar.');
@@ -140,22 +192,24 @@ class _EditMaintenancePageState
     });
 
     try {
+      String? fotoUrl = widget.maintenance.fotoUrl;
+      if (_fotoBaru != null) {
+        fotoUrl = await _service.uploadFotoVerifikasi(_fotoBaru!, _kamarId!);
+      }
+
       final data = SupabaseMaintenanceModel(
         id: widget.maintenance.id,
         kamarId: _kamarId!,
-        jenisPerawatan:
-        _jenisPerawatan.trim(),
-        tanggalPerawatan:
-        _tanggalPerawatan,
-        teknisi:
-        _teknisiController.text.trim().isEmpty
+        jenisPerawatan: _jenisPerawatan.trim(),
+        tanggalPerawatan: _tanggalPerawatan,
+        teknisi: _teknisiController.text.trim().isEmpty
             ? null
             : _teknisiController.text.trim(),
         status: _status.trim(),
-        catatan:
-        _catatanController.text.trim().isEmpty
+        catatan: _catatanController.text.trim().isEmpty
             ? null
             : _catatanController.text.trim(),
+        fotoUrl: fotoUrl,
       );
 
       await _service.ubahMaintenance(data);
@@ -464,26 +518,135 @@ class _EditMaintenancePageState
             ),
           ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 18),
+
+          _label('Foto Bukti Verifikasi Selesai'),
+          const SizedBox(height: 6),
+          Text(
+            _status.toLowerCase() == 'selesai'
+                ? 'Unggah foto hasil perawatan sebagai bukti verifikasi selesai.'
+                : 'Opsional: tambahkan foto dokumentasi atau bukti perawatan selesai.',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _isSaving ? null : _tampilkanPilihanFoto,
+            child: Container(
+              height: 170,
+              width: double.infinity,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _status.toLowerCase() == 'selesai'
+                      ? Colors.green.shade400
+                      : const Color(0xFFBDBDBD),
+                  width: _status.toLowerCase() == 'selesai' ? 1.6 : 1,
+                ),
+              ),
+              child: _fotoBaru != null
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(_fotoBaru!, fit: BoxFit.cover),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.black54,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _fotoBaru = null),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : (widget.maintenance.fotoUrl != null &&
+                          widget.maintenance.fotoUrl!.isNotEmpty)
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              widget.maintenance.fotoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 8,
+                              bottom: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Ganti Foto',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo_rounded,
+                              size: 36,
+                              color: _status.toLowerCase() == 'selesai'
+                                  ? Colors.green.shade700
+                                  : const Color(0xFF753924),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Ketuk untuk unggah foto bukti selesai',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _status.toLowerCase() == 'selesai'
+                                    ? Colors.green.shade700
+                                    : const Color(0xFF753924),
+                              ),
+                            ),
+                          ],
+                        ),
+            ),
+          ),
+
+          const SizedBox(height: 22),
 
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed:
-              _isSaving ? null : _simpan,
-              style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                const Color(0xFF753924),
-                foregroundColor:
-                Colors.white,
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    14,
-                  ),
+              onPressed: _isSaving ? null : _simpan,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF753924),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: _isSaving

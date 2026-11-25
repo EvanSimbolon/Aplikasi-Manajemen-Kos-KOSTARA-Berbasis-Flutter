@@ -21,6 +21,7 @@ Proyek: `https://cbvhufmufcredviwguko.supabase.co`
    - `supabase/migrations/20261124000005_kamar_foto_dan_pembayaran_rls.sql`
    - `supabase/migrations/20261125000000_enable_all_rls_and_policies.sql`
    - `supabase/migrations/20261125000001_fix_penghuni_aktif_dan_recovery.sql`
+   - `supabase/migrations/20261125000002_maintenance_foto_dan_notif_admin.sql`
 3. Klik **Run** untuk setiap file.
 
 Migrasi `20261112000000` menambah kolom `nama_tujuan`, `kamar_id`, dan

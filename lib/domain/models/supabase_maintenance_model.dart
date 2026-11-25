@@ -6,6 +6,7 @@ class SupabaseMaintenanceModel {
   final String? teknisi;
   final String status;
   final String? catatan;
+  final String? fotoUrl;
 
   const SupabaseMaintenanceModel({
     required this.id,
@@ -15,26 +16,21 @@ class SupabaseMaintenanceModel {
     this.teknisi,
     required this.status,
     this.catatan,
+    this.fotoUrl,
   });
 
   factory SupabaseMaintenanceModel.fromMap(
-      Map<String, dynamic> map,
-      ) {
+    Map<String, dynamic> map,
+  ) {
     return SupabaseMaintenanceModel(
       id: map['id'] as String,
       kamarId: map['kamar_id'] as String,
-      jenisPerawatan:
-      map['jenis_perawatan'] as String? ?? '',
-      tanggalPerawatan:
-      DateTime.parse(
-        map['tanggal_perawatan'] as String,
-      ),
-      teknisi:
-      map['teknisi'] as String?,
-      status:
-      map['status'] as String? ?? 'Terjadwal',
-      catatan:
-      map['catatan'] as String?,
+      jenisPerawatan: map['jenis_perawatan'] as String? ?? '',
+      tanggalPerawatan: DateTime.parse(map['tanggal_perawatan'] as String),
+      teknisi: map['teknisi'] as String?,
+      status: map['status'] as String? ?? 'Terjadwal',
+      catatan: map['catatan'] as String?,
+      fotoUrl: map['foto_url'] as String?,
     );
   }
 
@@ -43,14 +39,14 @@ class SupabaseMaintenanceModel {
       'id': id,
       'kamar_id': kamarId,
       'jenis_perawatan': jenisPerawatan,
-      'tanggal_perawatan':
-      tanggalPerawatan
+      'tanggal_perawatan': tanggalPerawatan
           .toIso8601String()
           .split('T')
           .first,
       'teknisi': teknisi,
       'status': status,
       'catatan': catatan,
+      'foto_url': fotoUrl,
     };
   }
 }

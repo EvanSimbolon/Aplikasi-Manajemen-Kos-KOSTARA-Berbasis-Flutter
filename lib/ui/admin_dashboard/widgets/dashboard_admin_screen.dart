@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:belajar_dart/data/services/notification_service.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/core/themes/app_theme.dart';
+import 'package:belajar_dart/ui/core/ui/floating_bottom_nav.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardAdminScreen extends StatefulWidget {
@@ -20,6 +22,8 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
   int totalPenghuni = 0;
   double totalPembayaran = 0; // pembayaran terverifikasi bulan ini
   double totalMenunggu = 0; // pembayaran menunggu verifikasi bulan ini
+  int jumlahMenunggu = 0; // jumlah request pembayaran menunggu verifikasi
+  List<Map<String, dynamic>> daftarMenunggu = [];
   bool loadingPenghuni = true;
   bool loadingPembayaran = true;
   String? pesanError;
@@ -31,6 +35,10 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
   void initState() {
     super.initState();
     debugPrint('DASH: initState versi baru jalan');
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      NotificationService().listenToNotifikasi(user.id);
+    }
     _muatAwal();
     _listenPenghuni();
     _listenPembayaran();
@@ -75,10 +83,17 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
 
     double verifikasi = 0;
     double menunggu = 0;
+    final pendingList = <Map<String, dynamic>>[];
 
     for (final row in rows) {
-      final dibayar =
-      DateTime.tryParse(row['dibayar_pada']?.toString() ?? '')?.toLocal();
+      final status = row['status']?.toString();
+      if (status == 'menunggu_verifikasi') {
+        pendingList.add(row);
+      }
+
+      final dibayar = DateTime.tryParse(
+        row['dibayar_pada']?.toString() ?? '',
+      )?.toLocal();
       if (dibayar == null ||
           dibayar.isBefore(awalBulan) ||
           !dibayar.isBefore(awalBulanDepan)) {
@@ -87,9 +102,9 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
 
       final jumlah = double.tryParse(row['jumlah_pembayaran'].toString()) ?? 0;
 
-      if (row['status'] == 'terverifikasi') {
+      if (status == 'terverifikasi') {
         verifikasi += jumlah;
-      } else if (row['status'] == 'menunggu_verifikasi') {
+      } else if (status == 'menunggu_verifikasi') {
         menunggu += jumlah;
       }
     }
@@ -98,6 +113,8 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     setState(() {
       totalPembayaran = verifikasi;
       totalMenunggu = menunggu;
+      jumlahMenunggu = pendingList.length;
+      daftarMenunggu = pendingList;
       loadingPembayaran = false;
     });
   }
@@ -158,11 +175,14 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     try {
       final query = supabase.from('pembayaran').select(
         'id, jumlah_pembayaran, dibayar_pada, status, '
-        'tagihan!inner ( penyewaan!inner ( kamar!inner ( kos_id ) ) )',
+        'pengguna!pembayaran_pembayar_id_fkey ( nama_lengkap ), '
+        'tagihan!inner ( penyewaan!inner ( kamar!inner ( nomor_kamar, kos_id ) ) )',
       );
       final data = kosIds.isNotEmpty
-          ? await query.inFilter('tagihan.penyewaan.kamar.kos_id', kosIds)
-          : await query;
+          ? await query
+              .inFilter('tagihan.penyewaan.kamar.kos_id', kosIds)
+              .order('dibayar_pada', ascending: false)
+          : await query.order('dibayar_pada', ascending: false);
       debugPrint('DASH pembayaran select: ${data.length} baris');
       _hitungPembayaran(List<Map<String, dynamic>>.from(data));
     } catch (e) {
@@ -202,6 +222,131 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     return 'Rp $angka';
   }
 
+  void _tampilkanNotifikasiAdmin() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFFFBF3),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Color(0xFF854836),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Notifikasi Pembayaran',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF4A3427),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (jumlahMenunggu > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB22C),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$jumlahMenunggu Menunggu',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3E2212),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (daftarMenunggu.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Semua pembayaran sudah diverifikasi.',
+                      style: TextStyle(color: Colors.black54, fontSize: 13),
+                    ),
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: daftarMenunggu.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final row = daftarMenunggu[i];
+                      final nama =
+                          (row['pengguna'] as Map?)?['nama_lengkap']
+                              ?.toString() ??
+                          'Penghuni';
+                      final kamar =
+                          ((row['tagihan'] as Map?)?['penyewaan']
+                                  as Map?)?['kamar']?['nomor_kamar']
+                              ?.toString() ??
+                          '-';
+                      final nominal =
+                          double.tryParse(
+                            row['jumlah_pembayaran'].toString(),
+                          ) ??
+                          0;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFFFF0C2),
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            color: Color(0xFF854836),
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          '$nama (Kamar $kamar)',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Sudah bayar ${_formatRupiah(nominal)} • Menunggu verifikasi',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.dataPembayaran,
+                          ).then((_) => _muatAwal());
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -211,30 +356,126 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Admin
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'HALO ADMIN',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF333333),
-                      letterSpacing: 0.5,
+              // Header Admin + Lonceng Notifikasi
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'HALO ADMIN',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF333333),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Selamat datang kembali !',
+                          style: TextStyle(
+                            color: Color(0xFF757575),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Selamat datang kembali !',
-                    style: TextStyle(
-                      color: Color(0xFF757575),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                  InkWell(
+                    onTap: _tampilkanNotifikasiAdmin,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7EEDD),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFD3C3AD)),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.notifications_rounded,
+                            color: Color(0xFF4A3427),
+                            size: 24,
+                          ),
+                          if (jumlahMenunggu > 0)
+                            Positioned(
+                              right: -5,
+                              top: -5,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFD32F2F),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '$jumlahMenunggu',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
+              if (!loadingPembayaran && jumlahMenunggu > 0) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.dataPembayaran,
+                  ).then((_) => _muatAwal()),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF0C2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE88D1E)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.notifications_active_rounded,
+                          color: Color(0xFFB54F00),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '$jumlahMenunggu penghuni sudah bayar dan menunggu verifikasi Anda.',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF4A3427),
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFFB54F00),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (pesanError != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -458,88 +699,37 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
         ),
       ),
 
-      // Floating Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryDark,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(0, Icons.home_rounded, 'Beranda'),
-            _buildNavItem(1, Icons.domain_add_rounded, 'Kamar'),
-            _buildNavItem(2, Icons.credit_card_rounded, 'Pembayaran'),
-            _buildNavItem(3, Icons.handyman_rounded, 'Maintenance'),
-            _buildNavItem(4, Icons.person_rounded, 'Profil'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    bool isSelected = _selectedIndex == index;
-    return GestureDetector(
-      onTap: () async {
-        setState(() {
-          _selectedIndex = index;
-        });
-        switch (index) {
-          case 1:
-            await Navigator.pushNamed(context, AppRoutes.dataKamar);
-            break;
-          case 2:
-            await Navigator.pushNamed(context, AppRoutes.dataPembayaran);
-            break;
-          case 3:
-            await Navigator.pushNamed(context, AppRoutes.maintenance);
-            break;
-          case 4:
-            await Navigator.pushNamed(context, AppRoutes.profil);
-            break;
-        }
-        if (mounted) {
-          setState(() {
-            _selectedIndex = 0;
-          });
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryOrange : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 24,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
+      // Floating Bottom Navigation Bar seragam
+      bottomNavigationBar: FloatingBottomNav(
+        selectedIndex: _selectedIndex,
+        items: const [
+          FloatingNavItem(icon: Icons.home_rounded, label: 'Beranda'),
+          FloatingNavItem(icon: Icons.bed_rounded, label: 'Kamar'),
+          FloatingNavItem(icon: Icons.credit_card_rounded, label: 'Pembayaran'),
+          FloatingNavItem(icon: Icons.handyman_rounded, label: 'Maintenance'),
+          FloatingNavItem(icon: Icons.person_rounded, label: 'Profil'),
+        ],
+        onTap: (index) async {
+          setState(() => _selectedIndex = index);
+          switch (index) {
+            case 1:
+              await Navigator.pushNamed(context, AppRoutes.dataKamar);
+              break;
+            case 2:
+              await Navigator.pushNamed(context, AppRoutes.dataPembayaran);
+              break;
+            case 3:
+              await Navigator.pushNamed(context, AppRoutes.maintenance);
+              break;
+            case 4:
+              await Navigator.pushNamed(context, AppRoutes.profil);
+              break;
+          }
+          if (mounted) {
+            setState(() => _selectedIndex = 0);
+            _muatAwal();
+          }
+        },
       ),
     );
   }
