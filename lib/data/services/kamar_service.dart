@@ -66,23 +66,15 @@ class KamarService {
     final occupiedIds = <String>{};
     if (kamarIds.isNotEmpty) {
       try {
-        final now = DateTime.now();
-        final todayStr =
-            '${now.year.toString().padLeft(4, '0')}-'
-            '${now.month.toString().padLeft(2, '0')}-'
-            '${now.day.toString().padLeft(2, '0')}';
-
         final penyewaanRows = await _supabase
             .from('penyewaan')
-            .select('kamar_id, status, tanggal_selesai')
+            .select('kamar_id, status')
             .inFilter('kamar_id', kamarIds)
             .inFilter('status', ['aktif', 'menunggu_mulai']);
 
         for (final row in penyewaanRows) {
           final kamarId = row['kamar_id']?.toString();
-          final selesai = row['tanggal_selesai']?.toString();
-          if (kamarId != null &&
-              (selesai == null || selesai.compareTo(todayStr) >= 0)) {
+          if (kamarId != null) {
             occupiedIds.add(kamarId);
           }
         }

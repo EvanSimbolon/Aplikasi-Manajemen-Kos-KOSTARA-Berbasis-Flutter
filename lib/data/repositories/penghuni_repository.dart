@@ -78,15 +78,9 @@ class PenghuniRepository {
 
       // Fallback langsung dari klien jika RPC belum dideploy.
       try {
-        final now = DateTime.now();
-        final todayStr =
-            '${now.year.toString().padLeft(4, '0')}-'
-            '${now.month.toString().padLeft(2, '0')}-'
-            '${now.day.toString().padLeft(2, '0')}';
-
         final rows = await SupabaseService.client
             .from('penyewaan')
-            .select('id, penghuni_id, status, tanggal_selesai, kamar!inner(kos_id)')
+            .select('id, penghuni_id, status, kamar!inner(kos_id)')
             .eq('kamar.kos_id', kosId);
 
         final inactiveIds = <String>[];
@@ -97,10 +91,7 @@ class PenghuniRepository {
           final id = row['id']?.toString();
           final penghuniId = row['penghuni_id']?.toString();
           final status = row['status']?.toString();
-          final selesai = row['tanggal_selesai']?.toString();
-          final isInactive =
-              (status != 'aktif' && status != 'menunggu_mulai') ||
-              (selesai != null && selesai.compareTo(todayStr) < 0);
+          final isInactive = status != 'aktif' && status != 'menunggu_mulai';
 
           if (isInactive) {
             if (id != null) inactiveIds.add(id);
@@ -200,16 +191,11 @@ class PenghuniRepository {
 
     final rows = await query.order('tanggal_mulai', ascending: false);
 
-    final now = DateTime.now();
-    final hariIni = DateTime(now.year, now.month, now.day);
     final result = <Penghuni>[];
     final seen = <String>{};
 
     for (final row in rows) {
       final selesai = Formatters.parseDate(row['tanggal_selesai']);
-      if (selesai != null && selesai.isBefore(hariIni)) {
-        continue;
-      }
 
       final penghuniId = row['penghuni_id'] as String?;
       if (penghuniId != null && !seen.add(penghuniId)) continue;

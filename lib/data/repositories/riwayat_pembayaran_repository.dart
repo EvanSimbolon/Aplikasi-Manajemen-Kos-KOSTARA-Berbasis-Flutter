@@ -37,12 +37,16 @@ class RiwayatPembayaranRepository {
   Future<List<RiwayatPembayaran>> getRiwayat() async {
     if (!SupabaseService.isAvailable) return getDemoRiwayat();
 
+    final user = SupabaseService.currentUser;
+    if (user == null) return const [];
+
     final rows = await SupabaseService.client
         .from('v_riwayat_pembayaran')
         .select(
           'pembayaran_id,periode_mulai,jumlah_pembayaran,dibayar_pada,'
           'status_pembayaran',
         )
+        .eq('penghuni_id', user.id)
         .order('dibayar_pada', ascending: false);
 
     return rows.map((row) {

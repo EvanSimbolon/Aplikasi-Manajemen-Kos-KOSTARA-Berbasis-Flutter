@@ -8,7 +8,7 @@ class RiwayatPembayaranViewModel extends ChangeNotifier {
     RiwayatPembayaranRepository repository =
         const RiwayatPembayaranRepository(),
   }) : _repository = repository,
-       _items = repository.getDemoRiwayat();
+       _items = const [];
 
   final RiwayatPembayaranRepository _repository;
 

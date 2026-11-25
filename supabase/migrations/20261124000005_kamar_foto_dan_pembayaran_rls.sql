@@ -80,10 +80,7 @@ begin
   from public.penyewaan p
   join public.kamar km on km.id = p.kamar_id
   where km.kos_id = p_kos_id
-    and (
-      p.status in ('berakhir', 'dihentikan')
-      or p.tanggal_selesai < current_date
-    );
+    and p.status in ('berakhir', 'dihentikan');
 
   if v_penyewaan_ids is null or array_length(v_penyewaan_ids, 1) is null then
     return 0;
