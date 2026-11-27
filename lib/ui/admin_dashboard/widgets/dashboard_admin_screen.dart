@@ -173,18 +173,26 @@ class _DashboardAdminScreenState extends State<DashboardAdminScreen> {
     }
 
     try {
-      final query = supabase.from('pembayaran').select(
-        'id, jumlah_pembayaran, dibayar_pada, status, '
-        'pengguna!pembayaran_pembayar_id_fkey ( nama_lengkap ), '
-        'tagihan!inner ( penyewaan!inner ( kamar!inner ( nomor_kamar, kos_id ) ) )',
-      );
-      final data = kosIds.isNotEmpty
-          ? await query
-              .inFilter('tagihan.penyewaan.kamar.kos_id', kosIds)
-              .order('dibayar_pada', ascending: false)
-          : await query.order('dibayar_pada', ascending: false);
-      debugPrint('DASH pembayaran select: ${data.length} baris');
-      _hitungPembayaran(List<Map<String, dynamic>>.from(data));
+      final raw = await supabase
+          .from('pembayaran')
+          .select(
+            'id, jumlah_pembayaran, dibayar_pada, status, '
+            'pengguna!pembayaran_pembayar_id_fkey ( nama_lengkap ), '
+            'tagihan ( penyewaan ( kamar ( nomor_kamar, kos_id ) ) )',
+          )
+          .order('dibayar_pada', ascending: false);
+
+      final kosSet = kosIds.toSet();
+      final filtered = List<Map<String, dynamic>>.from(raw).where((row) {
+        if (kosSet.isEmpty) return true;
+        final kamar =
+            ((row['tagihan'] as Map?)?['penyewaan'] as Map?)?['kamar'] as Map?;
+        final kosId = kamar?['kos_id']?.toString();
+        return kosId == null || kosSet.contains(kosId);
+      }).toList();
+
+      debugPrint('DASH pembayaran select: ${filtered.length} baris');
+      _hitungPembayaran(filtered);
     } catch (e) {
       debugPrint('DASH pembayaran select ERROR: $e');
       if (!mounted) return;

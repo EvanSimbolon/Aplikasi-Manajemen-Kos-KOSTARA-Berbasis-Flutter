@@ -373,7 +373,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: TextField(
                   controller: _identifierController,
-                  keyboardType: TextInputType.emailAddress,
+                  keyboardType:
+                      isAdmin ? TextInputType.emailAddress : TextInputType.text,
                   textInputAction: TextInputAction.next,
                   autocorrect: false,
                   decoration: InputDecoration(

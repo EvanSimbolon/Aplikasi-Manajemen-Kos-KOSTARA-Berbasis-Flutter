@@ -51,17 +51,18 @@ class PembayaranRepository {
     }
 
     // 1. Ambil dari tabel 'pembayaran' milik kos_id pemilik
+    //    RLS pembayaran_select_payer_or_owner sudah membatasi ke kos milik pemilik;
+    //    filter kos_id dilakukan di Dart agar tidak bergantung pada nested filter 3-level PostgREST.
     if (statusNormalized != 'Belum Dibayar') {
-      try {
-        var queryPembayaran = _supabase.from('pembayaran').select('''
+      var queryPembayaran = _supabase.from('pembayaran').select('''
           id,
           tagihan_id,
           pengguna!pembayaran_pembayar_id_fkey (
             nama_lengkap
           ),
-          tagihan!inner (
-            penyewaan!inner (
-              kamar!inner (
+          tagihan (
+            penyewaan (
+              kamar (
                 nomor_kamar,
                 kos_id
               )
@@ -74,28 +75,33 @@ class PembayaranRepository {
             lokasi_berkas
           ),
           catatan
-        ''').inFilter('tagihan.penyewaan.kamar.kos_id', kosIds);
+        ''');
 
-        final String? dbStatus = switch (statusNormalized) {
-          'Menunggu' => 'menunggu_verifikasi',
-          'Lunas' => 'terverifikasi',
-          'Ditolak' => 'ditolak',
-          _ => null,
-        };
+      final String? dbStatus = switch (statusNormalized) {
+        'Menunggu' => 'menunggu_verifikasi',
+        'Lunas' => 'terverifikasi',
+        'Ditolak' => 'ditolak',
+        _ => null,
+      };
 
-        final List<dynamic> resPembayaran = dbStatus != null
-            ? await queryPembayaran
-                .eq('status', dbStatus)
-                .order('dibayar_pada', ascending: false)
-            : await queryPembayaran.order('dibayar_pada', ascending: false);
+      final List<dynamic> resPembayaran = dbStatus != null
+          ? await queryPembayaran
+              .eq('status', dbStatus)
+              .order('dibayar_pada', ascending: false)
+          : await queryPembayaran.order('dibayar_pada', ascending: false);
 
-        hasilGabungan.addAll(
-          resPembayaran.map(
-            (data) => Pembayaran.fromJson(data as Map<String, dynamic>),
-          ),
-        );
-      } catch (e) {
-        debugPrint('ERROR QUERY PEMBAYARAN ($statusNormalized): $e');
+      final kosSet = kosIds.toSet();
+      for (final raw in resPembayaran) {
+        final data = raw as Map<String, dynamic>;
+        final tagihan = data['tagihan'] as Map<String, dynamic>?;
+        final penyewaan = tagihan?['penyewaan'] as Map<String, dynamic>?;
+        final kamar = penyewaan?['kamar'] as Map<String, dynamic>?;
+        final kosId = kamar?['kos_id']?.toString();
+
+        if (kosSet.isNotEmpty && kosId != null && !kosSet.contains(kosId)) {
+          continue;
+        }
+        hasilGabungan.add(Pembayaran.fromJson(data));
       }
     }
 

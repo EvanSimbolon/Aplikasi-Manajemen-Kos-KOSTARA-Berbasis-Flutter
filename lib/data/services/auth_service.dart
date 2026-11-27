@@ -42,11 +42,24 @@ class AuthService {
     required String token,
   }) async {
     final identifier = nomorTelepon.trim();
-    final email = identifier.contains('@')
-        ? identifier.toLowerCase()
-        : emailUntukNomorTelepon(identifier);
+    String? email;
+    if (identifier.contains('@')) {
+      email = identifier.toLowerCase();
+    } else {
+      try {
+        final res = await SupabaseService.client.rpc(
+          'cari_email_penghuni_by_hp',
+          params: {'p_telepon': identifier},
+        );
+        final resolved = res?.toString().trim() ?? '';
+        if (resolved.contains('@')) {
+          email = resolved.toLowerCase();
+        }
+      } catch (_) {}
+      email ??= emailUntukNomorTelepon(identifier);
+    }
     if (email == null) {
-      throw const AuthFailure('Nomor HP tidak valid.');
+      throw const AuthFailure('Email atau Nomor HP tidak valid.');
     }
 
     final tokenBersih = token.trim();

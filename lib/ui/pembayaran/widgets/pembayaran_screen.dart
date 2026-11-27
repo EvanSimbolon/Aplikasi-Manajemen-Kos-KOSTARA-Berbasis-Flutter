@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:belajar_dart/domain/models/pembayaran.dart';
 import 'package:belajar_dart/routing/app_routes.dart';
 import 'package:belajar_dart/ui/pembayaran/view_models/pembayaran_view_model.dart';
@@ -13,6 +16,7 @@ class DataPembayaranPage extends StatefulWidget {
 
 class _DataPembayaranPageState extends State<DataPembayaranPage> {
   final TextEditingController _searchController = TextEditingController();
+  StreamSubscription<List<Map<String, dynamic>>>? _pembayaranSub;
 
   static const List<String> _namaBulan = [
     'Januari',
@@ -34,11 +38,29 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PembayaranViewModel>().fetchPembayaran('Semua');
+      _mulaiListenPembayaran();
     });
+  }
+
+  void _mulaiListenPembayaran() {
+    try {
+      _pembayaranSub = Supabase.instance.client
+          .from('pembayaran')
+          .stream(primaryKey: ['id'])
+          .listen(
+            (_) {
+              if (mounted) {
+                context.read<PembayaranViewModel>().fetchPembayaran('Semua');
+              }
+            },
+            onError: (e) => debugPrint('Realtime pembayaran error: $e'),
+          );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _pembayaranSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -203,6 +225,26 @@ class _DataPembayaranPageState extends State<DataPembayaranPage> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         children: [
+                          if (viewModel.errorMessage != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFE5E5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFD32F2F),
+                                ),
+                              ),
+                              child: Text(
+                                viewModel.errorMessage!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF8C1D18),
+                                ),
+                              ),
+                            ),
+                          ],
                           // ---------- BAGIAN 1: REQUEST VERIFIKASI BARU ----------
                           Row(
                             children: [

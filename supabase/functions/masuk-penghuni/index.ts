@@ -53,15 +53,23 @@ async function sha256Hex(nilai: string): Promise<string> {
 function varianTelepon(nilai: string): string[] {
   const digit = nilai.replace(/\D/g, '');
   if (!digit) return [];
-  const lokal = digit.startsWith('62') ? `0${digit.slice(2)}` : digit;
+  let lokal = digit;
+  if (digit.startsWith('62')) {
+    lokal = `0${digit.slice(2)}`;
+  } else if (digit.startsWith('8')) {
+    lokal = `0${digit}`;
+  }
   const tanpaNol = lokal.replace(/^0/, '');
-  return [
-    lokal,
-    `62${tanpaNol}`,
-    `+62${tanpaNol}`,
-    digit,
-    `+${digit}`,
-  ];
+  return Array.from(
+    new Set([
+      lokal,
+      tanpaNol,
+      `62${tanpaNol}`,
+      `+62${tanpaNol}`,
+      digit,
+      `+${digit}`,
+    ]),
+  );
 }
 
 function tambahSatuBulan(tanggal: string): string {
@@ -132,13 +140,45 @@ Deno.serve(async (req) => {
       kueri = kueri.in('telepon_tujuan', varianTelepon(identifier));
     }
 
-    const { data: undangan, error: errUndangan } = await kueri
+    let { data: undangan, error: errUndangan } = await kueri
       .order('dibuat_pada', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (errUndangan) {
       throw new Error(`Gagal membaca undangan: ${errUndangan.message}`);
     }
+
+    // Fallback: jika login pakai No. HP dan belum ketemu di `undangan_penghuni.telepon_tujuan`,
+    // cek di `pengguna.nomor_telepon` lalu cocokkan undangan berdasarkan email-nya.
+    if (!undangan && !identifier.includes('@')) {
+      const varian = varianTelepon(identifier);
+      if (varian.length > 0) {
+        const { data: penggunaHp } = await admin
+          .from('pengguna')
+          .select('email')
+          .in('nomor_telepon', varian)
+          .limit(1)
+          .maybeSingle();
+
+        if (penggunaHp?.email) {
+          const { data: undanganViaHp, error: errViaHp } = await admin
+            .from('undangan_penghuni')
+            .select(
+              'id, kos_id, pengundang_id, nama_tujuan, email_tujuan, telepon_tujuan, kamar_id, tanggal_mulai, hash_token, status, berlaku_sampai',
+            )
+            .in('status', ['menunggu', 'diterima'])
+            .ilike('email_tujuan', String(penggunaHp.email).toLowerCase())
+            .order('dibuat_pada', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (errViaHp) {
+            throw new Error(`Gagal membaca undangan: ${errViaHp.message}`);
+          }
+          undangan = undanganViaHp;
+        }
+      }
+    }
+
     if (!undangan) {
       return json({
         error:
@@ -218,17 +258,50 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
+      let penyewaanId: string | null = sewaLama?.id ?? null;
+
       if (!sewaLama) {
-        const { error: errSewa } = await admin.from('penyewaan').insert({
-          kamar_id: undangan.kamar_id,
-          penghuni_id: pengguna.id,
-          tanggal_mulai: mulai,
-          tanggal_selesai: selesai,
-          harga_sewa_disepakati: kamar?.harga_sewa_bulanan ?? 0,
-          status: 'aktif',
-        });
+        const { data: sewaBaru, error: errSewa } = await admin
+          .from('penyewaan')
+          .insert({
+            kamar_id: undangan.kamar_id,
+            penghuni_id: pengguna.id,
+            tanggal_mulai: mulai,
+            tanggal_selesai: selesai,
+            harga_sewa_disepakati: kamar?.harga_sewa_bulanan ?? 0,
+            status: 'aktif',
+          })
+          .select('id')
+          .single();
         if (errSewa) {
           throw new Error(`Gagal membuat penyewaan: ${errSewa.message}`);
+        }
+        penyewaanId = sewaBaru?.id ?? null;
+      }
+
+      if (penyewaanId) {
+        const { data: tagihanAktif } = await admin
+          .from('tagihan')
+          .select('id')
+          .eq('penyewaan_id', penyewaanId)
+          .in('status', ['belum_bayar', 'terlambat', 'dibayar_sebagian'])
+          .limit(1)
+          .maybeSingle();
+
+        if (!tagihanAktif) {
+          const jatuhTempo = new Date(`${mulai}T00:00:00Z`);
+          jatuhTempo.setUTCDate(jatuhTempo.getUTCDate() + 7);
+          await admin.from('tagihan').upsert(
+            {
+              penyewaan_id: penyewaanId,
+              periode_mulai: mulai,
+              periode_selesai: selesai,
+              tanggal_jatuh_tempo: jatuhTempo.toISOString().slice(0, 10),
+              jumlah_tagihan: kamar?.harga_sewa_bulanan ?? 0,
+              status: 'belum_bayar',
+            },
+            { onConflict: 'penyewaan_id,periode_mulai,periode_selesai' },
+          );
         }
       }
     }

@@ -138,17 +138,48 @@ class UndanganService {
     }
   }
 
+  /// Mencari email terdaftar berdasarkan No. HP melalui RPC Supabase.
+  /// Mengembalikan null jika RPC belum dideploy atau nomor HP tidak ditemukan.
+  Future<String?> _cariEmailDariNomorHp(String nomorHp) async {
+    try {
+      final res = await _client.rpc(
+        'cari_email_penghuni_by_hp',
+        params: {'p_telepon': nomorHp.trim()},
+      );
+      final email = res?.toString().trim() ?? '';
+      return email.contains('@') ? email.toLowerCase() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Verifikasi token lalu buat sesi login Supabase untuk penghuni.
-  /// (Tidak diubah. Fungsi `masuk-penghuni` belum ada di Supabase.)
+  /// Mendukung login menggunakan email maupun nomor HP yang didaftarkan pemilik.
   Future<String> masukDenganToken({
     required String identifier,
     required String token,
   }) async {
+    final idBersih = identifier.trim();
     final tokenBersih = token.trim().toUpperCase();
+
+    if (idBersih.isEmpty || tokenBersih.isEmpty) {
+      throw const UndanganException('Email / No. HP dan token wajib diisi.');
+    }
+
+    // Jika pengguna memasukkan No. HP, coba resolusi email via RPC terlebih dulu
+    // agar tetap berfungsi meskipun format nomor berbeda atau Edge Function lama.
+    String identifierKirim = idBersih;
+    if (!idBersih.contains('@')) {
+      final emailTerkait = await _cariEmailDariNomorHp(idBersih);
+      if (emailTerkait != null) {
+        identifierKirim = emailTerkait;
+      }
+    }
+
     try {
       final res = await _client.functions.invoke(
         'masuk-penghuni',
-        body: {'identifier': identifier.trim(), 'token': tokenBersih},
+        body: {'identifier': identifierKirim, 'token': tokenBersih},
       );
 
       final data = res.data;

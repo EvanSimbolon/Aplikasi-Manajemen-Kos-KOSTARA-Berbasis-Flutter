@@ -15,12 +15,14 @@ class PembayaranViewModel extends ChangeNotifier {
 
   List<Pembayaran> _allPembayaran = [];
   bool _isLoading = false;
+  String? _errorMessage;
   String _filter = 'Semua';
   String _keyword = '';
   int? _selectedMonth; // null = Semua Bulan, 1..12 = Januari..Desember
   late int _selectedYear;
 
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
   String get filter => _filter;
   String get selectedFilter => _filter;
   String get keyword => _keyword;
@@ -63,6 +65,7 @@ class PembayaranViewModel extends ChangeNotifier {
   /// Mengambil data pembayaran dari repositori (sesuai kos_id pemilik)
   Future<void> fetchPembayaran([String filterStatus = 'Semua']) async {
     _isLoading = true;
+    _errorMessage = null;
     _filter = filterStatus;
     notifyListeners();
 
@@ -72,6 +75,7 @@ class PembayaranViewModel extends ChangeNotifier {
       );
     } catch (e) {
       _allPembayaran = [];
+      _errorMessage = 'Gagal memuat data pembayaran: $e';
       debugPrint('Error fetch pembayaran: $e');
     } finally {
       _isLoading = false;

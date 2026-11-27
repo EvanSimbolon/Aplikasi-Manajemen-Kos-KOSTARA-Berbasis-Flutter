@@ -90,7 +90,7 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
       final nomorKamar = kamar?['nomor_kamar']?.toString() ?? '-';
 
       // Cari tagihan aktif (belum_bayar / terlambat) milik penyewaan ini
-      final tagihan = await client
+      Map<String, dynamic>? tagihan = await client
           .from('tagihan')
           .select(
             'id, periode_mulai, periode_selesai, tanggal_jatuh_tempo, '
@@ -102,6 +102,20 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
           .limit(1)
           .maybeSingle();
 
+      // Jika belum ada tagihan di DB, otomatis terbitkan lewat RPC pastikan_tagihan_aktif
+      if (tagihan == null) {
+        try {
+          final rpcResult = await client.rpc('pastikan_tagihan_aktif');
+          if (rpcResult is List && rpcResult.isNotEmpty) {
+            tagihan = Map<String, dynamic>.from(rpcResult.first as Map);
+          } else if (rpcResult is Map) {
+            tagihan = Map<String, dynamic>.from(rpcResult);
+          }
+        } catch (e) {
+          debugPrint('RPC pastikan_tagihan_aktif gagal: $e');
+        }
+      }
+
       if (!mounted) return;
       if (tagihan == null) {
         setState(() {
@@ -112,20 +126,21 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
               0;
           _periodeText = 'Tidak ada tagihan aktif';
           _errorTagihan =
-              'Saat ini tidak ada tagihan yang belum dibayar. Hubungi pemilik kos jika tagihan belum diterbitkan.';
+              'Tagihan belum diterbitkan di database. Jalankan migrasi SQL terbaru (auto_tagihan) atau hubungi pemilik kos.';
           _memuatTagihan = false;
         });
         return;
       }
 
-      final periodeMulai = Formatters.parseDate(tagihan['periode_mulai']);
-      final jatuhTempo = Formatters.parseDate(tagihan['tanggal_jatuh_tempo']);
+      final tagihanAktif = tagihan;
+      final periodeMulai = Formatters.parseDate(tagihanAktif['periode_mulai']);
+      final jatuhTempo = Formatters.parseDate(tagihanAktif['tanggal_jatuh_tempo']);
 
       setState(() {
-        _tagihanId = tagihan['id']?.toString();
+        _tagihanId = tagihanAktif['id']?.toString();
         _nomorKamar = nomorKamar;
         _nominalTagihan =
-            double.tryParse(tagihan['jumlah_tagihan'].toString()) ?? 0;
+            double.tryParse(tagihanAktif['jumlah_tagihan'].toString()) ?? 0;
         _periodeText = periodeMulai != null
             ? Formatters.bulanTahun(periodeMulai)
             : (jatuhTempo != null ? Formatters.bulanTahun(jatuhTempo) : '-');
@@ -341,7 +356,8 @@ class _BuktiPembayaranScreenState extends State<BuktiPembayaranScreen> {
               onCancel: () => setState(() {
                 foto = null;
               }),
-              onSubmit: (loading || _tagihanId == null) ? () {} : kirimBukti,
+              onSubmit: loading ? () {} : kirimBukti,
+              submitLabel: loading ? 'Mengirim...' : 'Kirim',
             ),
           ],
         ],
